@@ -263,9 +263,7 @@
         <h2 class="section-title">Riwayat Transaksi</h2>
         <svg id="historyToggleIcon" class="toggle-icon rotated" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="m6 9 6 6 6-6"/></svg>
     </div>
-    
     <div id="debtBannerContainer"></div>
-
     <div class="collapsible-content" id="historySection">
         <div class="table-container">
             <table>
@@ -316,22 +314,38 @@
         </div>
     </div>
 
+    <div class="modal-overlay" id="pinAuthModal">
+        <div class="modal-card" style="max-width: 320px; text-align: center;">
+            <h2 style="margin-top:0;">Otorisasi Profil</h2>
+            <p style="font-size: 13px; color: var(--text-muted); margin-bottom: 25px;">Verifikasi identitas Anda untuk mengedit profil.</p>
+            
+            <button class="btn-modal glow-biru" style="background: var(--hitam); border: 1px solid var(--biru); color: var(--biru); display: flex; align-items: center; justify-content: center; gap: 10px; margin-bottom: 15px;" onclick="verifyBiometric('edit')">
+                <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 12a2 2 0 1 0-2-2"/><path d="M17 12c0-2.8-2.2-5-5-5s-5 2.2-5 5"/><path d="M22 12c0-5.5-4.5-10-10-10S2 6.5 2 12"/><path d="M17 12a5 5 0 0 1-5 5c-2.8 0-5-2.2-5-5"/><path d="M12 22a10 10 0 0 1-10-10"/></svg>
+                Gunakan Sidik Jari
+            </button>
+
+            <div style="margin-bottom: 15px;"><span style="font-size: 11px; color: var(--text-muted); font-weight: 800; text-transform: uppercase;">Atau</span></div>
+
+            <input type="password" id="inputAuthPin" class="input-field" placeholder="****" inputmode="numeric" maxlength="6" style="text-align: center; font-size: 26px; letter-spacing: 8px; margin-bottom: 10px;">
+            <button class="btn-modal" onclick="verifyPinAuth('edit')">Gunakan PIN</button>
+            <button class="btn-modal btn-cancel" onclick="closeModal('pinAuthModal')">Batal</button>
+        </div>
+    </div>
+
     <div class="modal-overlay" id="resetPinModal">
         <div class="modal-card" style="max-width: 320px; text-align: center;">
             <h2 style="margin-top:0; color: var(--merah);">Otorisasi Reset</h2>
             <p style="font-size: 13px; color: var(--text-muted); margin-bottom: 25px;">Verifikasi identitas Anda untuk memberikan perintah penghapusan data masif.</p>
             
-            <button class="btn-modal glow-biru" style="background: var(--hitam); border: 1px solid var(--biru); color: var(--biru); display: flex; align-items: center; justify-content: center; gap: 10px; margin-bottom: 15px;" onclick="verifyBiometric()">
+            <button class="btn-modal glow-biru" style="background: var(--hitam); border: 1px solid var(--biru); color: var(--biru); display: flex; align-items: center; justify-content: center; gap: 10px; margin-bottom: 15px;" onclick="verifyBiometric('reset')">
                 <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 12a2 2 0 1 0-2-2"/><path d="M17 12c0-2.8-2.2-5-5-5s-5 2.2-5 5"/><path d="M22 12c0-5.5-4.5-10-10-10S2 6.5 2 12"/><path d="M17 12a5 5 0 0 1-5 5c-2.8 0-5-2.2-5-5"/><path d="M12 22a10 10 0 0 1-10-10"/></svg>
                 Gunakan Sidik Jari
             </button>
 
-            <div style="margin-bottom: 15px;">
-                <span style="font-size: 11px; color: var(--text-muted); font-weight: 800; text-transform: uppercase;">Atau</span>
-            </div>
+            <div style="margin-bottom: 15px;"><span style="font-size: 11px; color: var(--text-muted); font-weight: 800; text-transform: uppercase;">Atau</span></div>
 
             <input type="password" id="inputResetPin" class="input-field" placeholder="****" inputmode="numeric" maxlength="6" style="text-align: center; font-size: 26px; letter-spacing: 8px; border-color: var(--merah); margin-bottom: 10px;">
-            <button class="btn-modal" style="background: var(--merah);" onclick="verifyResetPin()">Gunakan PIN</button>
+            <button class="btn-modal" style="background: var(--merah);" onclick="verifyPinAuth('reset')">Gunakan PIN</button>
             <button class="btn-modal btn-cancel" onclick="closeModal('resetPinModal')">Batal</button>
         </div>
     </div>
@@ -357,16 +371,6 @@
                 Login dengan Google
             </button>
             <button class="btn-modal btn-cancel" onclick="closeModal('googleAuthModal')" style="margin-top: 15px;">Batal</button>
-        </div>
-    </div>
-
-    <div class="modal-overlay" id="pinAuthModal">
-        <div class="modal-card" style="max-width: 320px; text-align: center;">
-            <h2 style="margin-top:0;">Otorisasi</h2>
-            <p style="font-size: 13px; color: var(--text-muted); margin-bottom: 20px;">Masukkan PIN Profil Anda.</p>
-            <input type="password" id="inputAuthPin" class="input-field" placeholder="****" inputmode="numeric" maxlength="6" style="text-align: center; font-size: 26px; letter-spacing: 8px;">
-            <button class="btn-modal" onclick="verifyPinAndEdit()">Buka Akses</button>
-            <button class="btn-modal btn-cancel" onclick="closeModal('pinAuthModal')">Batal</button>
         </div>
     </div>
 
@@ -587,7 +591,7 @@
         }
         initAppHeader();
 
-        // 6. EVENT LISTENERS & MODAL MANAJEMEN
+        // 6. EVENT LISTENERS DOM & TABS
         window.switchWallet = (type) => {
             activeWallet = type; document.getElementById('walletSwitchContainer').setAttribute('data-active', type);
             renderShortcuts(); updateUI();
@@ -642,23 +646,117 @@
             document.getElementById('profileViewModal').classList.add('active');
         };
 
+        // ==========================================
+        // 7. SISTEM OTORISASI GANDA (BIOMETRIK & PIN)
+        // ==========================================
+
         window.requestProfileEdit = () => {
             if(profile.pin && profile.pin !== '') {
                 closeModal('profileViewModal');
                 document.getElementById('inputAuthPin').value = '';
                 document.getElementById('pinAuthModal').classList.add('active');
-                setTimeout(() => document.getElementById('inputAuthPin').focus(), 300);
-            } else { window.openProfileEdit(); }
+            } else { 
+                window.openProfileEdit(); 
+            }
         };
 
-        window.verifyPinAndEdit = () => {
-            if(document.getElementById('inputAuthPin').value === profile.pin) {
-                closeModal('pinAuthModal'); window.openProfileEdit();
-            } else { showToast("PIN Salah!", "error"); }
+        window.initResetSequence = () => {
+            if (!currentUser) {
+                showToast("DITOLAK! Anda harus terhubung ke Cloud (Google) untuk mereset sistem.", "error");
+                return;
+            }
+            if (!profile.pin || profile.pin.trim() === '') {
+                showToast("DITOLAK! Buat Security PIN di Edit Profil terlebih dahulu.", "error");
+                return;
+            }
+            closeModal('profileViewModal');
+            document.getElementById('inputResetPin').value = '';
+            document.getElementById('resetPinModal').classList.add('active');
+        };
+
+        // Mesin Utama WebAuthn - Anti Blokir Android
+        window.verifyBiometric = async (actionType) => {
+            if (!window.isSecureContext) {
+                showToast("Ditolak: Biometrik WAJIB diakses via jalur aman (HTTPS).", "error");
+                return;
+            }
+            if (!window.PublicKeyCredential) {
+                showToast("Ditolak: Browser/HP Anda tidak mendukung sidik jari web.", "error");
+                return;
+            }
+
+            try {
+                const randomChallenge = new Uint8Array(32);
+                window.crypto.getRandomValues(randomChallenge);
+                const randomUserId = new Uint8Array(16);
+                window.crypto.getRandomValues(randomUserId);
+
+                const currentDomain = window.location.hostname;
+
+                const publicKeyOptions = {
+                    challenge: randomChallenge,
+                    rp: { 
+                        name: "Enterprise Finance Dashboard", 
+                        id: currentDomain 
+                    }, 
+                    user: {
+                        id: randomUserId,
+                        name: profile.googleEmail || "admin@enterprise.local",
+                        displayName: profile.name || "Admin"
+                    },
+                    pubKeyCredParams: [
+                        {alg: -7, type: "public-key"},
+                        {alg: -257, type: "public-key"}
+                    ],
+                    authenticatorSelection: {
+                        authenticatorAttachment: "platform", 
+                        userVerification: "required", 
+                        residentKey: "discouraged" // INI KUNCI AGAR ANDROID TIDAK MEMAKSA SIMPAN PASSKEY
+                    },
+                    timeout: 60000,
+                    attestation: "none"
+                };
+
+                const credential = await navigator.credentials.create({ publicKey: publicKeyOptions });
+                
+                if(credential) {
+                    showToast("Otorisasi Biometrik Sah", "success");
+                    if (actionType === 'edit') {
+                        closeModal('pinAuthModal');
+                        window.openProfileEdit();
+                    } else if (actionType === 'reset') {
+                        closeModal('resetPinModal');
+                        document.getElementById('resetConfirmModal').classList.add('active');
+                    }
+                }
+            } catch (err) {
+                console.error("Biometrik Error:", err);
+                if (err.name === 'NotAllowedError') {
+                    showToast("Dibatalkan oleh OS/Pengguna.", "error");
+                } else {
+                    showToast("Sidik Jari gagal. Silakan gunakan PIN.", "error");
+                }
+            }
+        };
+
+        window.verifyPinAuth = (actionType) => {
+            const inputId = actionType === 'edit' ? 'inputAuthPin' : 'inputResetPin';
+            const inputVal = document.getElementById(inputId).value;
+
+            if (inputVal === profile.pin) {
+                if (actionType === 'edit') {
+                    closeModal('pinAuthModal');
+                    window.openProfileEdit();
+                } else if (actionType === 'reset') {
+                    closeModal('resetPinModal');
+                    document.getElementById('resetConfirmModal').classList.add('active');
+                }
+            } else {
+                showToast("PIN Salah!", "error");
+            }
         };
 
         window.openProfileEdit = () => {
-            closeModal('profileViewModal');
             document.getElementById('editProfileImg').src = profile.photo;
             document.getElementById('editName').value = profile.name !== 'Guest' ? profile.name : '';
             window.selectGender(profile.gender);
@@ -667,6 +765,7 @@
             document.getElementById('profileEditModal').classList.add('active');
         };
 
+        // Form Edit Profil
         document.getElementById('profileUploader').addEventListener('change', function(e) {
             const f = e.target.files[0]; 
             if(f) { 
@@ -683,9 +782,7 @@
             let v = e.target.value.replace(/\D/g, ''); 
             if (v.length > 8) v = v.substring(0, 8);
             
-            let hari = v.substring(0, 2);
-            let bulan = v.substring(2, 4);
-            let tahun = v.substring(4, 8);
+            let hari = v.substring(0, 2); let bulan = v.substring(2, 4); let tahun = v.substring(4, 8);
             
             if (hari.length === 2 && parseInt(hari) > 31) hari = '31';
             if (hari.length === 2 && parseInt(hari) === 0) hari = '01';
@@ -716,108 +813,15 @@
             initAppHeader(); closeModal('profileEditModal'); showToast("Profil Disimpan");
         };
 
-        // ==========================================
-        // 7. SISTEM RESET TOTAL (FACTORY RESET)
-        // ==========================================
-        window.initResetSequence = () => {
-            // Blokir akses jika belum terhubung ke Google
-            if (!currentUser) {
-                showToast("DITOLAK! Anda harus terhubung ke Cloud (Google) untuk mereset sistem.", "error");
-                return;
-            }
-            // Blokir akses jika belum membuat PIN
-            if (!profile.pin || profile.pin.trim() === '') {
-                showToast("DITOLAK! Buat Security PIN di Edit Profil terlebih dahulu.", "error");
-                return;
-            }
-            closeModal('profileViewModal');
-            document.getElementById('inputResetPin').value = '';
-            document.getElementById('resetPinModal').classList.add('active');
-        };
-
-                        // Verifikasi Biometrik WebAuthn (Diperbarui untuk Android/GitHub Pages)
-        window.verifyBiometric = async () => {
-            if (!window.isSecureContext) {
-                showToast("Ditolak: Biometrik WAJIB menggunakan jalur aman (HTTPS).", "error");
-                return;
-            }
-
-            if (!window.PublicKeyCredential) {
-                showToast("Ditolak: Browser/HP Anda tidak mendukung WebAuthn.", "error");
-                return;
-            }
-
-            try {
-                const randomChallenge = new Uint8Array(32);
-                window.crypto.getRandomValues(randomChallenge);
-                const randomUserId = new Uint8Array(16);
-                window.crypto.getRandomValues(randomUserId);
-
-                // Tangkap domain asli secara dinamis
-                const currentDomain = window.location.hostname;
-
-                const publicKeyOptions = {
-                    challenge: randomChallenge,
-                    rp: { 
-                        name: "Enterprise Finance Dashboard", 
-                        id: currentDomain // WAJIB SAMA PERSIS DENGAN DOMAIN
-                    }, 
-                    user: {
-                        id: randomUserId,
-                        name: "admin@enterprise.local",
-                        displayName: profile.name || "Admin"
-                    },
-                    pubKeyCredParams: [
-                        {alg: -7, type: "public-key"},  // Android/iOS
-                        {alg: -257, type: "public-key"} // PC/Mac
-                    ],
-                    authenticatorSelection: {
-                        authenticatorAttachment: "platform", // Paksa pakai sensor di perangkat ini
-                        userVerification: "required" // Wajib otorisasi (sidik jari/PIN OS)
-                    },
-                    timeout: 60000,
-                    attestation: "none"
-                };
-
-                const credential = await navigator.credentials.create({
-                    publicKey: publicKeyOptions
-                });
-                
-                if(credential) {
-                    showToast("Otorisasi Biometrik Sah", "success");
-                    closeModal('resetPinModal');
-                    document.getElementById('resetConfirmModal').classList.add('active');
-                }
-            } catch (err) {
-                console.error("Biometrik Error:", err);
-                if (err.name === 'NotAllowedError') {
-                    showToast("Dibatalkan oleh sistem atau pengguna.", "error");
-                } else {
-                    showToast("Sidik Jari ditolak. Silakan gunakan PIN aplikasi.", "error");
-                }
-            }
-        };
-
-        window.verifyResetPin = () => {
-            const input = document.getElementById('inputResetPin').value;
-            if (input === profile.pin) {
-                closeModal('resetPinModal');
-                document.getElementById('resetConfirmModal').classList.add('active');
-            } else {
-                showToast("PIN Reset Salah!", "error");
-            }
-        };
-
+        // Eksekusi Factory Reset
         window.executeFactoryReset = async () => {
-            if (!currentUser) return; // Pengecekan ganda demi keamanan
+            if (!currentUser) return;
 
             showToast("Memulai proses pemusnahan data...", "success");
             
-            // 1. Eksekusi Hapus Data Lokal
             db = [];
             localStorage.removeItem('finance_modern_db');
 
-            // 2. Eksekusi Hapus Data Server per dokumen (Firestore Client logic)
             try {
                 const txRef = collection(dbFirestore, `users/${currentUser.uid}/transactions`);
                 const snapshot = await getDocs(txRef);
@@ -840,7 +844,7 @@
         };
 
         // ==========================================
-        // 8. FUNGSI RENDER CHART & EXPAND LOGIC
+        // 8. FUNGSI RENDER CHART & UI
         // ==========================================
         window.toggleExpandStat = (clickedElement, containerId) => {
             const items = document.getElementById(containerId).children;
@@ -870,7 +874,7 @@
         };
 
         // ==========================================
-        // 9. INPUT TRANSAKSI (SINKRONISASI)
+        // 9. INPUT TRANSAKSI (SINKRONISASI FIRESTORE & LOKAL)
         // ==========================================
         let isLoanMode = false;
         window.quickInput = (type, category, desc, isLoan = false) => {
@@ -1009,7 +1013,7 @@
         });
 
         // ==========================================
-        // 10. RENDER ENGINE & UI REFRESH
+        // 10. INisialisasi & RENDER DATA
         // ==========================================
         function renderShortcuts() {
             const c = document.getElementById('quickActionsContainer');
