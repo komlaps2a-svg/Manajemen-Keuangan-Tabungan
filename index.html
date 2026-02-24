@@ -421,7 +421,7 @@
     <script type="module">
         import { initializeApp } from "https://www.gstatic.com/firebasejs/10.8.1/firebase-app.js";
         import { getAuth, signInWithPopup, GoogleAuthProvider, signOut, onAuthStateChanged } from "https://www.gstatic.com/firebasejs/10.8.1/firebase-auth.js";
-        import { getFirestore, enableIndexedDbPersistence, collection, onSnapshot, addDoc, updateDoc, doc, query, orderBy } from "https://www.gstatic.com/firebasejs/10.8.1/firebase-firestore.js";
+        import { getFirestore, enableIndexedDbPersistence, collection, onSnapshot, addDoc, updateDoc, doc, query, orderBy, setDoc, getDoc } from "https://www.gstatic.com/firebasejs/10.8.1/firebase-firestore.js";
 
         // 1. KONFIGURASI FIREBASE
         const firebaseConfig = {
@@ -440,11 +440,8 @@
 
         // 2. AKTIFKAN CACHE OFFLINE FIRESTORE
         enableIndexedDbPersistence(dbFirestore).catch((err) => {
-            if (err.code == 'failed-precondition') {
-                console.warn("Multiple tabs open. Offline persistence hanya aktif di satu tab.");
-            } else if (err.code == 'unimplemented') {
-                console.warn("Browser ini tidak mendukung offline persistence.");
-            }
+            if (err.code == 'failed-precondition') console.warn("Offline persistence hanya aktif di satu tab.");
+            else if (err.code == 'unimplemented') console.warn("Browser ini tidak mendukung offline persistence.");
         });
 
         // 3. GLOBAL STATE
@@ -474,26 +471,36 @@
         const categories = { masuk: ['Gaji', 'Top-Up', 'Bonus', 'Usaha'], keluar: ['Makan', 'Transport', 'Belanja', 'Tagihan'] };
 
         // 4. AUTENTIKASI & SINKRONISASI REAL-TIME
-        onAuthStateChanged(auth, (user) => {
+        onAuthStateChanged(auth, async (user) => {
             if (user) {
                 currentUser = user;
                 document.getElementById('networkStatus').innerText = "Online Mode (Cloud)";
                 document.getElementById('networkStatus').className = "status-sync sync-online";
                 
-                profile.googleLinked = true;
-                profile.googleEmail = user.email;
-                if(profile.name === 'Guest') profile.name = user.displayName;
-                profile.photo = user.photoURL || profile.photo;
-                localStorage.setItem('user_profile', JSON.stringify(profile));
-                
-                initAppHeader();
-                
+                // Tarik profil dari server
+                const profileRef = doc(dbFirestore, `users/${user.uid}/profile/data`);
+                try {
+                    const docSnap = await getDoc(profileRef);
+                    if (docSnap.exists()) {
+                        profile = docSnap.data();
+                    } else {
+                        // Jika belum ada di server, push data lokal ke server
+                        if(profile.name === 'Guest') profile.name = user.displayName || 'Member';
+                        profile.photo = user.photoURL || profile.photo;
+                        await setDoc(profileRef, profile);
+                    }
+                    profile.googleLinked = true;
+                    profile.googleEmail = user.email;
+                    localStorage.setItem('user_profile', JSON.stringify(profile));
+                    initAppHeader();
+                } catch(e) { console.error("Gagal menarik profil:", e); }
+
+                // Listener Transaksi
                 const q = query(collection(dbFirestore, `users/${user.uid}/transactions`), orderBy("date", "asc"));
                 unsubscribeSnapshot = onSnapshot(q, (snapshot) => {
                     db = [];
-                    snapshot.forEach((doc) => {
-                        db.push({ id: doc.id, ...doc.data() }); 
-                    });
+                    snapshot.forEach((doc) => { db.push({ id: doc.id, ...doc.data() }); });
+                    localStorage.setItem('finance_modern_db', JSON.stringify(db));
                     updateUI();
                 });
             } else {
@@ -501,11 +508,7 @@
                 document.getElementById('networkStatus').innerText = "Offline Mode (Lokal)";
                 document.getElementById('networkStatus').className = "status-sync sync-offline";
                 
-                if (unsubscribeSnapshot) {
-                    unsubscribeSnapshot();
-                    unsubscribeSnapshot = null;
-                }
-                
+                if (unsubscribeSnapshot) { unsubscribeSnapshot(); unsubscribeSnapshot = null; }
                 db = JSON.parse(localStorage.getItem('finance_modern_db')) || [];
                 updateUI();
             }
@@ -515,10 +518,7 @@
             signInWithPopup(auth, googleProvider).then((result) => {
                 showToast("Berhasil Login ke Cloud", "success");
                 closeModal('googleAuthModal');
-            }).catch((error) => {
-                console.error(error);
-                showToast("Login Gagal: " + error.message, "error");
-            });
+            }).catch((error) => { showToast("Login Gagal: Cek whitelist domain", "error"); });
         });
 
         // 5. UTILITY & HEADER
@@ -553,7 +553,7 @@
         }
         initAppHeader();
 
-        // 6. EKSPOR FUNGSI KE WINDOW & EVENT LISTENERS
+        // 6. EVENT LISTENERS & MODAL MANAJEMEN
         window.switchWallet = (type) => {
             activeWallet = type; document.getElementById('walletSwitchContainer').setAttribute('data-active', type);
             renderShortcuts(); updateUI();
@@ -573,7 +573,7 @@
         
         window.openGoogleAuthModal = () => {
             if(currentUser) {
-                if(confirm("Yakin ingin logout dari Cloud? Aplikasi akan kembali ke mode lokal.")) {
+                if(confirm("Yakin ingin logout dari Cloud? Aplikasi akan memutus sinkronisasi server.")) {
                     signOut(auth).then(() => {
                         profile.googleLinked = false; profile.googleEmail = '';
                         localStorage.setItem('user_profile', JSON.stringify(profile));
@@ -581,9 +581,7 @@
                         closeModal('profileViewModal');
                     });
                 }
-            } else {
-                document.getElementById('googleAuthModal').classList.add('active');
-            }
+            } else { document.getElementById('googleAuthModal').classList.add('active'); }
         };
 
         window.openProfileView = () => {
@@ -635,16 +633,20 @@
             document.getElementById('profileEditModal').classList.add('active');
         };
 
-        window.saveProfileData = () => {
-            profile.name = smartCapitalize(document.getElementById('editName').value.trim()) || 'Guest';
-            profile.gender = document.getElementById('editGender').value;
-            profile.birthDate = document.getElementById('editBirth').value;
-            profile.pin = document.getElementById('editPin').value;
-            localStorage.setItem('user_profile', JSON.stringify(profile));
-            initAppHeader(); closeModal('profileEditModal'); showToast("Profil Disimpan");
-        };
+        // EVENT LISTENER UPLOADER FOTO
+        document.getElementById('profileUploader').addEventListener('change', function(e) {
+            const f = e.target.files[0]; 
+            if(f) { 
+                const r = new FileReader(); 
+                r.onload = function(evt) { 
+                    profile.photo = evt.target.result; 
+                    document.getElementById('editProfileImg').src = profile.photo; 
+                }; 
+                r.readAsDataURL(f); 
+            }
+        });
 
-                // Otomatisasi Garis Miring (/) Tanggal Lahir (Format: DD/MM/YYYY)
+        // VALIDASI ABSOLUT TANGGAL LAHIR
         document.getElementById('editBirth').addEventListener('input', function(e) {
             let v = e.target.value.replace(/\D/g, ''); 
             if (v.length > 8) v = v.substring(0, 8);
@@ -653,7 +655,6 @@
             let bulan = v.substring(2, 4);
             let tahun = v.substring(4, 8);
             
-            // Validasi mutlak agar tidak terbalik atau over-limit
             if (hari.length === 2 && parseInt(hari) > 31) hari = '31';
             if (hari.length === 2 && parseInt(hari) === 0) hari = '01';
             
@@ -666,6 +667,24 @@
             
             e.target.value = finalFormat;
         });
+
+        window.saveProfileData = async () => {
+            profile.name = smartCapitalize(document.getElementById('editName').value.trim()) || 'Guest';
+            profile.gender = document.getElementById('editGender').value;
+            profile.birthDate = document.getElementById('editBirth').value;
+            profile.pin = document.getElementById('editPin').value;
+            
+            // Push Profile ke Firestore jika online
+            if (currentUser) {
+                try {
+                    showToast("Menyinkronkan profil ke server...", "success");
+                    await setDoc(doc(dbFirestore, `users/${currentUser.uid}/profile/data`), profile);
+                } catch (e) { showToast("Gagal menyinkronkan ke server.", "error"); return; }
+            }
+
+            localStorage.setItem('user_profile', JSON.stringify(profile));
+            initAppHeader(); closeModal('profileEditModal'); showToast("Profil Disimpan");
+        };
 
         window.toggleExpandStat = (clickedElement, containerId) => {
             const items = document.getElementById(containerId).children;
@@ -817,13 +836,11 @@
             const txData = { wallet: activeWallet, type: type, category: cF, desc: dF, borrower: borrowerName, status: status, amount: rawAmount, date: new Date().toISOString() };
 
             if(currentUser) {
-                // Eksekusi Cloud. Jika offline, Firestore menyimpan cache.
                 addDoc(collection(dbFirestore, `users/${currentUser.uid}/transactions`), txData).then(()=>{
                     if(activeWallet === 'harian' && type === 'masuk') checkAndAutoLunasHutang();
                 });
                 closeModal('txModal'); showToast("Data diproses...", "success");
             } else {
-                // Eksekusi Lokal
                 txData.id = Date.now();
                 db.push(txData);
                 localStorage.setItem('finance_modern_db', JSON.stringify(db));
