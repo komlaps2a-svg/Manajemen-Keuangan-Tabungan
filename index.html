@@ -735,54 +735,50 @@
             document.getElementById('resetPinModal').classList.add('active');
         };
 
-                // Verifikasi Biometrik WebAuthn (Diperbarui)
+                        // Verifikasi Biometrik WebAuthn (Diperbarui untuk Android/GitHub Pages)
         window.verifyBiometric = async () => {
-            // 1. Cek keamanan protokol
             if (!window.isSecureContext) {
-                showToast("Ditolak: Biometrik WAJIB menggunakan jalur aman (HTTPS/Localhost).", "error");
+                showToast("Ditolak: Biometrik WAJIB menggunakan jalur aman (HTTPS).", "error");
                 return;
             }
 
-            // 2. Cek dukungan hardware browser
             if (!window.PublicKeyCredential) {
                 showToast("Ditolak: Browser/HP Anda tidak mendukung WebAuthn.", "error");
                 return;
             }
 
             try {
-                // Generate Crypto Acak untuk Challenge (Standar Keamanan)
                 const randomChallenge = new Uint8Array(32);
                 window.crypto.getRandomValues(randomChallenge);
                 const randomUserId = new Uint8Array(16);
                 window.crypto.getRandomValues(randomUserId);
 
+                // Tangkap domain asli secara dinamis
+                const currentDomain = window.location.hostname;
+
                 const publicKeyOptions = {
                     challenge: randomChallenge,
-                    rp: { name: "Enterprise Finance" }, // Relying Party
+                    rp: { 
+                        name: "Enterprise Finance Dashboard", 
+                        id: currentDomain // WAJIB SAMA PERSIS DENGAN DOMAIN
+                    }, 
                     user: {
                         id: randomUserId,
-                        name: profile.googleEmail || "admin@finance.local",
-                        displayName: profile.name
+                        name: "admin@enterprise.local",
+                        displayName: profile.name || "Admin"
                     },
                     pubKeyCredParams: [
-                        {alg: -7, type: "public-key"},  // Standar Android/iOS (ES256)
-                        {alg: -257, type: "public-key"} // Standar Windows/Mac (RS256)
+                        {alg: -7, type: "public-key"},  // Android/iOS
+                        {alg: -257, type: "public-key"} // PC/Mac
                     ],
                     authenticatorSelection: {
-                        authenticatorAttachment: "platform", // WAJIB: Paksa pakai sensor bawaan HP
-                        userVerification: "required", // WAJIB: Paksa otorisasi biometrik/PIN OS
-                        requireResidentKey: false
+                        authenticatorAttachment: "platform", // Paksa pakai sensor di perangkat ini
+                        userVerification: "required" // Wajib otorisasi (sidik jari/PIN OS)
                     },
-                    timeout: 60000, // Timeout 1 Menit
+                    timeout: 60000,
                     attestation: "none"
                 };
 
-                // Injeksi domain dinamis agar tidak bentrok di GitHub Pages vs Localhost
-                if(window.location.hostname !== 'localhost' && window.location.hostname !== '127.0.0.1') {
-                    publicKeyOptions.rp.id = window.location.hostname;
-                }
-                
-                // Memicu prompt OS Sidik Jari/Wajah/PIN Layar
                 const credential = await navigator.credentials.create({
                     publicKey: publicKeyOptions
                 });
@@ -793,16 +789,15 @@
                     document.getElementById('resetConfirmModal').classList.add('active');
                 }
             } catch (err) {
-                console.error("Biometrik Error Detail:", err);
+                console.error("Biometrik Error:", err);
                 if (err.name === 'NotAllowedError') {
-                    showToast("Dibatalkan: Anda menutup prompt atau OS menolak.", "error");
-                } else if (err.name === 'SecurityError') {
-                    showToast("Ditolak: Protokol tidak aman (Bukan HTTPS).", "error");
+                    showToast("Dibatalkan oleh sistem atau pengguna.", "error");
                 } else {
-                    showToast("Sensor gagal diregistrasi. Gunakan PIN manual.", "error");
+                    showToast("Sidik Jari ditolak. Silakan gunakan PIN aplikasi.", "error");
                 }
             }
         };
+
         window.verifyResetPin = () => {
             const input = document.getElementById('inputResetPin').value;
             if (input === profile.pin) {
