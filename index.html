@@ -307,7 +307,44 @@
                     </button>
                 </div>
             </div>
+            
+            <button class="btn-modal" onclick="initResetSequence()" style="background: transparent; border: 1px solid var(--merah); color: var(--merah); margin-bottom: 10px;">
+                <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" style="vertical-align: text-bottom; margin-right: 5px;"><path d="M3 6h18"/><path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"/><line x1="10" y1="11" x2="10" y2="17"/><line x1="14" y1="11" x2="14" y2="17"/></svg>
+                Reset Semua Data
+            </button>
             <button class="btn-modal btn-cancel" onclick="closeModal('profileViewModal')">Tutup</button>
+        </div>
+    </div>
+
+    <div class="modal-overlay" id="resetPinModal">
+        <div class="modal-card" style="max-width: 320px; text-align: center;">
+            <h2 style="margin-top:0; color: var(--merah);">Otorisasi Reset</h2>
+            <p style="font-size: 13px; color: var(--text-muted); margin-bottom: 25px;">Verifikasi identitas Anda untuk memberikan perintah penghapusan data masif.</p>
+            
+            <button class="btn-modal glow-biru" style="background: var(--hitam); border: 1px solid var(--biru); color: var(--biru); display: flex; align-items: center; justify-content: center; gap: 10px; margin-bottom: 15px;" onclick="verifyBiometric()">
+                <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 12a2 2 0 1 0-2-2"/><path d="M17 12c0-2.8-2.2-5-5-5s-5 2.2-5 5"/><path d="M22 12c0-5.5-4.5-10-10-10S2 6.5 2 12"/><path d="M17 12a5 5 0 0 1-5 5c-2.8 0-5-2.2-5-5"/><path d="M12 22a10 10 0 0 1-10-10"/></svg>
+                Gunakan Sidik Jari
+            </button>
+
+            <div style="margin-bottom: 15px;">
+                <span style="font-size: 11px; color: var(--text-muted); font-weight: 800; text-transform: uppercase;">Atau</span>
+            </div>
+
+            <input type="password" id="inputResetPin" class="input-field" placeholder="****" inputmode="numeric" maxlength="6" style="text-align: center; font-size: 26px; letter-spacing: 8px; border-color: var(--merah); margin-bottom: 10px;">
+            <button class="btn-modal" style="background: var(--merah);" onclick="verifyResetPin()">Gunakan PIN</button>
+            <button class="btn-modal btn-cancel" onclick="closeModal('resetPinModal')">Batal</button>
+        </div>
+    </div>
+
+    <div class="modal-overlay" id="resetConfirmModal">
+        <div class="modal-card" style="text-align:center; border-color: var(--merah);">
+            <div style="background: rgba(239, 68, 68, 0.1); width: 60px; height: 60px; border-radius: 50%; display: flex; align-items: center; justify-content: center; margin: 0 auto 15px auto; color: var(--merah);">
+                <svg width="30" height="30" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M10.29 3.86L1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z"/><line x1="12" y1="9" x2="12" y2="13"/><line x1="12" y1="17" x2="12.01" y2="17"/></svg>
+            </div>
+            <h2 style="margin-top:0; color: var(--merah);">PERINGATAN FATAL</h2>
+            <p style="color:var(--text-muted); font-size:14px; margin-bottom: 25px;">Seluruh data transaksi, saldo, dan riwayat di server akan <b>dihapus permanen</b>. Tindakan ini tidak dapat dibatalkan!</p>
+            <button class="btn-modal" style="background: var(--merah); color: white;" onclick="executeFactoryReset()">Saya Yakin (Hapus)</button>
+            <button class="btn-modal btn-cancel" onclick="closeModal('resetConfirmModal')">Batalkan</button>
         </div>
     </div>
 
@@ -315,12 +352,10 @@
         <div class="modal-card" style="text-align: center;">
             <h2 style="margin-top:0; border-bottom: 1px solid var(--border); padding-bottom: 10px;">Sinkronisasi Cloud</h2>
             <p style="font-size: 13px; color: var(--text-muted); margin-bottom: 25px;">Login untuk menyimpan data Anda dengan aman ke server Firebase secara real-time.</p>
-            
             <button class="btn-modal" id="btnRealGoogleLogin" style="display:flex; align-items:center; justify-content:center; gap:10px; background:#fff; color:#000; padding:15px;">
                 <svg width="18" height="18" viewBox="0 0 24 24" fill="currentColor"><path d="M12.24 10.285V14.4h6.806c-.275 1.765-2.056 5.174-6.806 5.174-4.095 0-7.439-3.389-7.439-7.574s3.345-7.574 7.439-7.574c2.33 0 3.891.989 4.785 1.849l3.254-3.138C18.189 1.186 15.479 0 12.24 0c-6.635 0-12 5.365-12 12s5.365 12 12 12c6.926 0 11.52-4.869 11.52-11.726 0-.788-.085-1.39-.189-1.989H12.24z"/></svg> 
                 Login dengan Google
             </button>
-
             <button class="btn-modal btn-cancel" onclick="closeModal('googleAuthModal')" style="margin-top: 15px;">Batal</button>
         </div>
     </div>
@@ -366,7 +401,7 @@
             <label class="input-label">Tanggal Lahir (Ketik Angka Saja)</label>
             <input type="text" id="editBirth" class="input-field" placeholder="DD/MM/YYYY" inputmode="numeric" autocomplete="off">
             
-            <label class="input-label text-kuning">Security PIN (Opsional)</label>
+            <label class="input-label text-kuning">Security PIN (Wajib untuk Reset)</label>
             <input type="password" id="editPin" class="input-field" placeholder="Ketik PIN untuk kunci profil" inputmode="numeric" maxlength="6" style="border-color:var(--kuning);">
 
             <button class="btn-modal" onclick="saveProfileData()">Simpan Perubahan</button>
@@ -421,7 +456,7 @@
     <script type="module">
         import { initializeApp } from "https://www.gstatic.com/firebasejs/10.8.1/firebase-app.js";
         import { getAuth, signInWithPopup, GoogleAuthProvider, signOut, onAuthStateChanged } from "https://www.gstatic.com/firebasejs/10.8.1/firebase-auth.js";
-        import { getFirestore, enableIndexedDbPersistence, collection, onSnapshot, addDoc, updateDoc, doc, query, orderBy, setDoc, getDoc } from "https://www.gstatic.com/firebasejs/10.8.1/firebase-firestore.js";
+        import { getFirestore, enableIndexedDbPersistence, collection, onSnapshot, addDoc, updateDoc, doc, query, orderBy, setDoc, getDoc, getDocs, deleteDoc } from "https://www.gstatic.com/firebasejs/10.8.1/firebase-firestore.js";
 
         // 1. KONFIGURASI FIREBASE
         const firebaseConfig = {
@@ -484,7 +519,6 @@
                     if (docSnap.exists()) {
                         profile = docSnap.data();
                     } else {
-                        // Jika belum ada di server, push data lokal ke server
                         if(profile.name === 'Guest') profile.name = user.displayName || 'Member';
                         profile.photo = user.photoURL || profile.photo;
                         await setDoc(profileRef, profile);
@@ -633,7 +667,6 @@
             document.getElementById('profileEditModal').classList.add('active');
         };
 
-        // EVENT LISTENER UPLOADER FOTO
         document.getElementById('profileUploader').addEventListener('change', function(e) {
             const f = e.target.files[0]; 
             if(f) { 
@@ -646,7 +679,6 @@
             }
         });
 
-        // VALIDASI ABSOLUT TANGGAL LAHIR
         document.getElementById('editBirth').addEventListener('input', function(e) {
             let v = e.target.value.replace(/\D/g, ''); 
             if (v.length > 8) v = v.substring(0, 8);
@@ -657,7 +689,6 @@
             
             if (hari.length === 2 && parseInt(hari) > 31) hari = '31';
             if (hari.length === 2 && parseInt(hari) === 0) hari = '01';
-            
             if (bulan.length === 2 && parseInt(bulan) > 12) bulan = '12';
             if (bulan.length === 2 && parseInt(bulan) === 0) bulan = '01';
             
@@ -674,7 +705,6 @@
             profile.birthDate = document.getElementById('editBirth').value;
             profile.pin = document.getElementById('editPin').value;
             
-            // Push Profile ke Firestore jika online
             if (currentUser) {
                 try {
                     showToast("Menyinkronkan profil ke server...", "success");
@@ -686,6 +716,105 @@
             initAppHeader(); closeModal('profileEditModal'); showToast("Profil Disimpan");
         };
 
+        // ==========================================
+        // 7. SISTEM RESET TOTAL (FACTORY RESET)
+        // ==========================================
+        window.initResetSequence = () => {
+            // Blokir akses jika belum terhubung ke Google
+            if (!currentUser) {
+                showToast("DITOLAK! Anda harus terhubung ke Cloud (Google) untuk mereset sistem.", "error");
+                return;
+            }
+            // Blokir akses jika belum membuat PIN
+            if (!profile.pin || profile.pin.trim() === '') {
+                showToast("DITOLAK! Buat Security PIN di Edit Profil terlebih dahulu.", "error");
+                return;
+            }
+            closeModal('profileViewModal');
+            document.getElementById('inputResetPin').value = '';
+            document.getElementById('resetPinModal').classList.add('active');
+        };
+
+        // Verifikasi Biometrik WebAuthn
+        window.verifyBiometric = async () => {
+            if (!window.PublicKeyCredential) {
+                showToast("Perangkat tidak mendukung atau izin sidik jari diblokir.", "error");
+                return;
+            }
+            try {
+                const publicKeyCredentialCreationOptions = {
+                    challenge: Uint8Array.from("randomStringUntukKeamanan", c => c.charCodeAt(0)),
+                    rp: { name: "Enterprise Finance Dashboard" },
+                    user: {
+                        id: Uint8Array.from("user_id_12345", c => c.charCodeAt(0)),
+                        name: profile.name,
+                        displayName: profile.name
+                    },
+                    pubKeyCredParams: [{alg: -7, type: "public-key"}],
+                    authenticatorSelection: { userVerification: "required" },
+                    timeout: 60000
+                };
+                
+                // Memicu prompt OS Sidik Jari/Wajah
+                const credential = await navigator.credentials.create({
+                    publicKey: publicKeyCredentialCreationOptions
+                });
+                
+                if(credential) {
+                    showToast("Identitas Terverifikasi", "success");
+                    closeModal('resetPinModal');
+                    document.getElementById('resetConfirmModal').classList.add('active');
+                }
+            } catch (err) {
+                console.error("Autentikasi Biometrik:", err);
+                showToast("Sidik Jari gagal/dibatalkan. Silakan gunakan PIN.", "error");
+            }
+        };
+
+        window.verifyResetPin = () => {
+            const input = document.getElementById('inputResetPin').value;
+            if (input === profile.pin) {
+                closeModal('resetPinModal');
+                document.getElementById('resetConfirmModal').classList.add('active');
+            } else {
+                showToast("PIN Reset Salah!", "error");
+            }
+        };
+
+        window.executeFactoryReset = async () => {
+            if (!currentUser) return; // Pengecekan ganda demi keamanan
+
+            showToast("Memulai proses pemusnahan data...", "success");
+            
+            // 1. Eksekusi Hapus Data Lokal
+            db = [];
+            localStorage.removeItem('finance_modern_db');
+
+            // 2. Eksekusi Hapus Data Server per dokumen (Firestore Client logic)
+            try {
+                const txRef = collection(dbFirestore, `users/${currentUser.uid}/transactions`);
+                const snapshot = await getDocs(txRef);
+                const deletePromises = [];
+                
+                snapshot.forEach((docItem) => {
+                    deletePromises.push(deleteDoc(doc(dbFirestore, `users/${currentUser.uid}/transactions/${docItem.id}`)));
+                });
+                
+                await Promise.all(deletePromises);
+                showToast("Data server berhasil dibumihanguskan.", "success");
+            } catch (e) {
+                console.error(e);
+                showToast("Gagal menghapus sebagian data server.", "error");
+            }
+
+            closeModal('resetConfirmModal');
+            updateUI();
+            showToast("Reset Total Berhasil. Saldo 0.", "success");
+        };
+
+        // ==========================================
+        // 8. FUNGSI RENDER CHART & EXPAND LOGIC
+        // ==========================================
         window.toggleExpandStat = (clickedElement, containerId) => {
             const items = document.getElementById(containerId).children;
             if (clickedElement.classList.contains('expanded')) {
@@ -713,7 +842,9 @@
             document.getElementById(iconId).classList.toggle('rotated'); 
         };
 
-        // 7. INPUT TRANSAKSI (SINKRONISASI FIRESTORE & LOKAL)
+        // ==========================================
+        // 9. INPUT TRANSAKSI (SINKRONISASI)
+        // ==========================================
         let isLoanMode = false;
         window.quickInput = (type, category, desc, isLoan = false) => {
             isLoanMode = isLoan;
@@ -850,7 +981,9 @@
             }
         });
 
-        // 8. RENDER ENGINE (Tabel & Grafik)
+        // ==========================================
+        // 10. RENDER ENGINE & UI REFRESH
+        // ==========================================
         function renderShortcuts() {
             const c = document.getElementById('quickActionsContainer');
             if(activeWallet === 'harian') {
