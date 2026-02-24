@@ -307,7 +307,7 @@
             </div>
             
             <button class="btn-modal" onclick="initResetSequence()" style="background: transparent; border: 1px solid var(--merah); color: var(--merah); margin-bottom: 10px;">
-                <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" style="vertical-align: text-bottom; margin-right: 5px;"><path d="M3 6h18"/><path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"/><line x1="10" y1="11" x2="10" y2="17"/><line x1="14" y1="11" x2="14" y2="17"/></svg>
+                <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" style="vertical-align: text-bottom; margin-right: 5px;"><path d="M3 6h18"/><path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2-2v2"/><line x1="10" y1="11" x2="10" y2="17"/><line x1="14" y1="11" x2="14" y2="17"/></svg>
                 Reset Semua Data
             </button>
             <button class="btn-modal btn-cancel" onclick="closeModal('profileViewModal')">Tutup</button>
@@ -317,17 +317,10 @@
     <div class="modal-overlay" id="pinAuthModal">
         <div class="modal-card" style="max-width: 320px; text-align: center;">
             <h2 style="margin-top:0;">Otorisasi Profil</h2>
-            <p style="font-size: 13px; color: var(--text-muted); margin-bottom: 25px;">Verifikasi identitas Anda untuk mengedit profil.</p>
+            <p style="font-size: 13px; color: var(--text-muted); margin-bottom: 25px;">Masukkan PIN keamanan Anda untuk mengedit profil.</p>
             
-            <button class="btn-modal glow-biru" style="background: var(--hitam); border: 1px solid var(--biru); color: var(--biru); display: flex; align-items: center; justify-content: center; gap: 10px; margin-bottom: 15px;" onclick="verifyBiometric('edit')">
-                <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 12a2 2 0 1 0-2-2"/><path d="M17 12c0-2.8-2.2-5-5-5s-5 2.2-5 5"/><path d="M22 12c0-5.5-4.5-10-10-10S2 6.5 2 12"/><path d="M17 12a5 5 0 0 1-5 5c-2.8 0-5-2.2-5-5"/><path d="M12 22a10 10 0 0 1-10-10"/></svg>
-                Gunakan Sidik Jari
-            </button>
-
-            <div style="margin-bottom: 15px;"><span style="font-size: 11px; color: var(--text-muted); font-weight: 800; text-transform: uppercase;">Atau</span></div>
-
             <input type="password" id="inputAuthPin" class="input-field" placeholder="****" inputmode="numeric" maxlength="6" style="text-align: center; font-size: 26px; letter-spacing: 8px; margin-bottom: 10px;">
-            <button class="btn-modal" onclick="verifyPinAuth('edit')">Gunakan PIN</button>
+            <button class="btn-modal" onclick="verifyPinAuth('edit')">Verifikasi PIN</button>
             <button class="btn-modal btn-cancel" onclick="closeModal('pinAuthModal')">Batal</button>
         </div>
     </div>
@@ -335,17 +328,10 @@
     <div class="modal-overlay" id="resetPinModal">
         <div class="modal-card" style="max-width: 320px; text-align: center;">
             <h2 style="margin-top:0; color: var(--merah);">Otorisasi Reset</h2>
-            <p style="font-size: 13px; color: var(--text-muted); margin-bottom: 25px;">Verifikasi identitas Anda untuk memberikan perintah penghapusan data masif.</p>
+            <p style="font-size: 13px; color: var(--text-muted); margin-bottom: 25px;">Masukkan PIN keamanan Anda untuk mereset data.</p>
             
-            <button class="btn-modal glow-biru" style="background: var(--hitam); border: 1px solid var(--biru); color: var(--biru); display: flex; align-items: center; justify-content: center; gap: 10px; margin-bottom: 15px;" onclick="verifyBiometric('reset')">
-                <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 12a2 2 0 1 0-2-2"/><path d="M17 12c0-2.8-2.2-5-5-5s-5 2.2-5 5"/><path d="M22 12c0-5.5-4.5-10-10-10S2 6.5 2 12"/><path d="M17 12a5 5 0 0 1-5 5c-2.8 0-5-2.2-5-5"/><path d="M12 22a10 10 0 0 1-10-10"/></svg>
-                Gunakan Sidik Jari
-            </button>
-
-            <div style="margin-bottom: 15px;"><span style="font-size: 11px; color: var(--text-muted); font-weight: 800; text-transform: uppercase;">Atau</span></div>
-
             <input type="password" id="inputResetPin" class="input-field" placeholder="****" inputmode="numeric" maxlength="6" style="text-align: center; font-size: 26px; letter-spacing: 8px; border-color: var(--merah); margin-bottom: 10px;">
-            <button class="btn-modal" style="background: var(--merah);" onclick="verifyPinAuth('reset')">Gunakan PIN</button>
+            <button class="btn-modal" style="background: var(--merah);" onclick="verifyPinAuth('reset')">Verifikasi PIN</button>
             <button class="btn-modal btn-cancel" onclick="closeModal('resetPinModal')">Batal</button>
         </div>
     </div>
@@ -493,7 +479,7 @@
         let pieChart, barChart, lineChart;
 
         const defaultProfile = { 
-            name: 'Guest', pin: '', credentialId: '', // Menyimpan ID passkey WebAuthn
+            name: 'Guest', pin: '', 
             photo: 'data:image/svg+xml;base64,PHN2ZyB4bWxucz0iaHR0cDovL3d3dy53My5vcmcvMjAwMC9zdmciIHZpZXdCb3g9IjAgMCAyNCAyNCIgZmlsbD0iIzFlMjliYiI+PHBhdGggZD0iTTEyIDJhNSA1IDAgMSAwIDUgNSBNMTIgMTRhNyA3IDAgMCAwLTcgN3YxSDE5di0xYTcgNyAwIDAgMC03LTdaIi8+PC9zdmc+', 
             joinDate: new Date().toISOString(), birthDate: '', gender: 'Rahasia', googleLinked: false, googleEmail: ''
         };
@@ -622,132 +608,41 @@
         };
 
         // ==========================================
-        // 7. WEBAUTHN (FIDO2) BIOMETRIK & PIN FALLBACK
+        // 7. SISTEM OTORISASI MURNI PIN (TANPA BIOMETRIK)
         // ==========================================
-
-        // Helper Konversi ArrayBuffer ke Base64URL dan sebaliknya
-        function bufferToBase64url(buffer) {
-            return btoa(String.fromCharCode(...new Uint8Array(buffer)))
-                .replace(/\+/g, '-').replace(/\//g, '_').replace(/=/g, '');
-        }
-        function base64urlToBuffer(base64url) {
-            const padding = '='.repeat((4 - base64url.length % 4) % 4);
-            const base64 = (base64url + padding).replace(/\-/g, '+').replace(/_/g, '/');
-            const rawData = atob(base64);
-            const outputArray = new Uint8Array(rawData.length);
-            for (let i = 0; i < rawData.length; ++i) outputArray[i] = rawData.charCodeAt(i);
-            return outputArray;
-        }
 
         window.requestProfileEdit = () => {
             if(profile.pin && profile.pin !== '') {
                 closeModal('profileViewModal');
                 document.getElementById('inputAuthPin').value = '';
-                
-                if (window.PublicKeyCredential) {
-                    verifyBiometric('edit');
-                } else {
-                    document.getElementById('pinAuthModal').classList.add('active');
-                }
-            } else { window.openProfileEdit(); }
+                document.getElementById('pinAuthModal').classList.add('active');
+            } else { 
+                window.openProfileEdit(); 
+            }
         };
 
         window.initResetSequence = () => {
             if (!currentUser) { showToast("Akses Ditolak: Wajib sinkron Google.", "error"); return; }
             if (!profile.pin || profile.pin.trim() === '') { showToast("Wajib buat PIN di Edit Profil.", "error"); return; }
-            closeModal('profileViewModal'); document.getElementById('inputResetPin').value = '';
             
-            if (window.PublicKeyCredential) {
-                verifyBiometric('reset');
-            } else {
-                document.getElementById('resetPinModal').classList.add('active');
-            }
-        };
-
-        // Logika Inti FIDO2
-        window.verifyBiometric = async (actionType) => {
-            const fallbackId = actionType === 'edit' ? 'pinAuthModal' : 'resetPinModal';
-            
-            if (!window.isSecureContext) {
-                showToast("Biometrik wajib via HTTPS.", "error");
-                document.getElementById(fallbackId).classList.add('active');
-                return;
-            }
-
-            try {
-                const isAvailable = await PublicKeyCredential.isUserVerifyingPlatformAuthenticatorAvailable();
-                if (!isAvailable) {
-                    showToast("Sensor biometrik tidak tersedia.", "error");
-                    document.getElementById(fallbackId).classList.add('active');
-                    return;
-                }
-
-                const domain = window.location.hostname;
-                const randomChallenge = new Uint8Array(32); window.crypto.getRandomValues(randomChallenge);
-
-                // FASE 1: Registrasi Passkey jika belum punya ID
-                if (!profile.credentialId) {
-                    showToast("Mendaftarkan passkey baru...", "success");
-                    const randomUserId = new Uint8Array(16); window.crypto.getRandomValues(randomUserId);
-                    
-                    const createOptions = {
-                        challenge: randomChallenge,
-                        rp: { name: "Finance App", id: domain }, 
-                        user: { id: randomUserId, name: profile.googleEmail || "admin@lokal", displayName: profile.name || "Admin" },
-                        pubKeyCredParams: [{alg: -7, type: "public-key"}, {alg: -257, type: "public-key"}],
-                        authenticatorSelection: { 
-                            authenticatorAttachment: "platform", 
-                            userVerification: "preferred" 
-                        },
-                        timeout: 60000,
-                        attestation: "none"
-                    };
-
-                    const credential = await navigator.credentials.create({ publicKey: createOptions });
-                    profile.credentialId = bufferToBase64url(credential.rawId);
-                    localStorage.setItem('user_profile', JSON.stringify(profile));
-                } 
-                // FASE 2: Otentikasi jika sudah ada ID
-                else {
-                    const credIdBuffer = base64urlToBuffer(profile.credentialId);
-                    const getOptions = {
-                        challenge: randomChallenge,
-                        allowCredentials: [{
-                            id: credIdBuffer,
-                            type: 'public-key',
-                            transports: ['internal']
-                        }],
-                        userVerification: "preferred",
-                        timeout: 60000
-                    };
-
-                    await navigator.credentials.get({ publicKey: getOptions });
-                }
-
-                // Jika berhasil melewati try, eksekusi perintah
-                if (actionType === 'edit') { 
-                    closeModal('pinAuthModal'); window.openProfileEdit(); 
-                } else if (actionType === 'reset') { 
-                    closeModal('resetPinModal'); document.getElementById('resetConfirmModal').classList.add('active'); 
-                }
-
-            } catch (err) {
-                console.warn("FIDO2 Batal/Error:", err);
-                if(err.name === 'NotAllowedError') {
-                    showToast("OS membatalkan permintaan. Gunakan PIN.", "error");
-                } else {
-                    showToast("Gagal membaca biometrik. Gunakan PIN.", "error");
-                }
-                document.getElementById(fallbackId).classList.add('active');
-            }
+            closeModal('profileViewModal'); 
+            document.getElementById('inputResetPin').value = '';
+            document.getElementById('resetPinModal').classList.add('active');
         };
 
         window.verifyPinAuth = (actionType) => {
             const inputVal = document.getElementById(actionType === 'edit' ? 'inputAuthPin' : 'inputResetPin').value;
             if (inputVal === profile.pin) {
-                if (actionType === 'edit') { closeModal('pinAuthModal'); window.openProfileEdit(); } 
-                else if (actionType === 'reset') { closeModal('resetPinModal'); document.getElementById('resetConfirmModal').classList.add('active'); }
-            } else { showToast("PIN Salah!", "error"); }
+                if (actionType === 'edit') { 
+                    closeModal('pinAuthModal'); 
+                    window.openProfileEdit(); 
+                } else if (actionType === 'reset') { 
+                    closeModal('resetPinModal'); 
+                    document.getElementById('resetConfirmModal').classList.add('active'); 
+                }
+            } else { 
+                showToast("PIN Salah!", "error"); 
+            }
         };
 
         window.openProfileEdit = () => {
