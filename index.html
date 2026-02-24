@@ -477,7 +477,7 @@
         const dbFirestore = getFirestore(app);
         const googleProvider = new GoogleAuthProvider();
 
-        // 2. AKTIFKAN CACHE OFFLINE FIRESTORE
+        // 2. AKTIFKAN CACHE OFFLINE
         enableIndexedDbPersistence(dbFirestore).catch((err) => {
             if (err.code == 'failed-precondition') console.warn("Offline persistence hanya aktif di satu tab.");
             else if (err.code == 'unimplemented') console.warn("Browser ini tidak mendukung offline persistence.");
@@ -509,68 +509,56 @@
         };
         const categories = { masuk: ['Gaji', 'Top-Up', 'Bonus', 'Usaha'], keluar: ['Makan', 'Transport', 'Belanja', 'Tagihan'] };
 
-        // 4. AUTENTIKASI & SINKRONISASI REAL-TIME
+        // 4. AUTH & SYNC
         onAuthStateChanged(auth, async (user) => {
             if (user) {
                 currentUser = user;
                 document.getElementById('networkStatus').innerText = "Online Mode (Cloud)";
                 document.getElementById('networkStatus').className = "status-sync sync-online";
                 
-                // Tarik profil dari server
                 const profileRef = doc(dbFirestore, `users/${user.uid}/profile/data`);
                 try {
                     const docSnap = await getDoc(profileRef);
-                    if (docSnap.exists()) {
-                        profile = docSnap.data();
-                    } else {
+                    if (docSnap.exists()) { profile = docSnap.data(); } 
+                    else {
                         if(profile.name === 'Guest') profile.name = user.displayName || 'Member';
                         profile.photo = user.photoURL || profile.photo;
                         await setDoc(profileRef, profile);
                     }
-                    profile.googleLinked = true;
-                    profile.googleEmail = user.email;
+                    profile.googleLinked = true; profile.googleEmail = user.email;
                     localStorage.setItem('user_profile', JSON.stringify(profile));
                     initAppHeader();
-                } catch(e) { console.error("Gagal menarik profil:", e); }
+                } catch(e) { console.error(e); }
 
-                // Listener Transaksi
                 const q = query(collection(dbFirestore, `users/${user.uid}/transactions`), orderBy("date", "asc"));
                 unsubscribeSnapshot = onSnapshot(q, (snapshot) => {
-                    db = [];
-                    snapshot.forEach((doc) => { db.push({ id: doc.id, ...doc.data() }); });
-                    localStorage.setItem('finance_modern_db', JSON.stringify(db));
-                    updateUI();
+                    db = []; snapshot.forEach((doc) => { db.push({ id: doc.id, ...doc.data() }); });
+                    localStorage.setItem('finance_modern_db', JSON.stringify(db)); updateUI();
                 });
             } else {
                 currentUser = null;
                 document.getElementById('networkStatus').innerText = "Offline Mode (Lokal)";
                 document.getElementById('networkStatus').className = "status-sync sync-offline";
-                
                 if (unsubscribeSnapshot) { unsubscribeSnapshot(); unsubscribeSnapshot = null; }
-                db = JSON.parse(localStorage.getItem('finance_modern_db')) || [];
-                updateUI();
+                db = JSON.parse(localStorage.getItem('finance_modern_db')) || []; updateUI();
             }
         });
 
         document.getElementById('btnRealGoogleLogin').addEventListener('click', () => {
-            signInWithPopup(auth, googleProvider).then((result) => {
-                showToast("Berhasil Login ke Cloud", "success");
-                closeModal('googleAuthModal');
-            }).catch((error) => { showToast("Login Gagal: Cek whitelist domain", "error"); });
+            signInWithPopup(auth, googleProvider).then(() => {
+                showToast("Berhasil Login", "success"); closeModal('googleAuthModal');
+            }).catch(() => { showToast("Gagal Login", "error"); });
         });
 
-        // 5. UTILITY & HEADER
+        // 5. UTILITY
         const formatRp = (num) => new Intl.NumberFormat('id-ID', { style: 'currency', currency: 'IDR', minimumFractionDigits: 0 }).format(num);
         function formatDetailDate(iso) {
-            if(!iso) return '-';
-            const d = new Date(iso); const m = ['Jan','Feb','Mar','Apr','Mei','Jun','Jul','Ags','Sep','Okt','Nov','Des'];
+            if(!iso) return '-'; const d = new Date(iso); const m = ['Jan','Feb','Mar','Apr','Mei','Jun','Jul','Ags','Sep','Okt','Nov','Des'];
             return `${String(d.getDate()).padStart(2,'0')} ${m[d.getMonth()]} ${d.getFullYear()} - ${String(d.getHours()).padStart(2,'0')}:${String(d.getMinutes()).padStart(2,'0')}`;
         }
         function showToast(msg, type = 'success') {
-            const box = document.getElementById('toastBox');
-            if(!box) return; 
-            const t = document.createElement('div');
-            t.className = `toast ${type}`; t.innerText = msg; box.appendChild(t);
+            const box = document.getElementById('toastBox'); if(!box) return; 
+            const t = document.createElement('div'); t.className = `toast ${type}`; t.innerText = msg; box.appendChild(t);
             setTimeout(() => t.classList.add('show'), 10);
             setTimeout(() => { t.classList.remove('show'); setTimeout(() => t.remove(), 400); }, 3000);
         }
@@ -579,10 +567,8 @@
             document.querySelectorAll('.custom-options.open').forEach(el => el.classList.remove('open')); 
         }
         function smartCapitalize(str) {
-            if(!str) return "";
-            if(str === str.toUpperCase()) return str; 
-            if(str === str.toLowerCase()) return str.replace(/\b\w/g, char => char.toUpperCase());
-            return str; 
+            if(!str) return ""; if(str === str.toUpperCase()) return str; 
+            if(str === str.toLowerCase()) return str.replace(/\b\w/g, char => char.toUpperCase()); return str; 
         }
         function initAppHeader() {
             document.getElementById('headName').innerText = profile.name;
@@ -591,32 +577,24 @@
         }
         initAppHeader();
 
-        // 6. EVENT LISTENERS DOM & TABS
-        window.switchWallet = (type) => {
-            activeWallet = type; document.getElementById('walletSwitchContainer').setAttribute('data-active', type);
-            renderShortcuts(); updateUI();
-        };
+        // 6. EVENT LISTENERS DOM
+        window.switchWallet = (type) => { activeWallet = type; document.getElementById('walletSwitchContainer').setAttribute('data-active', type); renderShortcuts(); updateUI(); };
         window.toggleCustomSelect = (id) => {
             const box = document.getElementById(id); const isOpen = box.classList.contains('open');
             document.querySelectorAll('.custom-options.open').forEach(el => el.classList.remove('open')); 
             if(!isOpen) box.classList.add('open');
         };
-        window.applyTimeFilter = (days, labelText) => { 
-            currentTimeFilter = days; document.getElementById('dispTimeFilter').innerText = labelText; 
-            closeModal(''); updateUI(); 
-        };
+        window.applyTimeFilter = (days, labelText) => { currentTimeFilter = days; document.getElementById('dispTimeFilter').innerText = labelText; closeModal(''); updateUI(); };
         window.selectGender = (val) => { document.getElementById('editGender').value = val; document.getElementById('dispGenderVal').innerText = val; closeModal(''); };
         window.selectCategory = (val) => { document.getElementById('tx-category').value = val; document.getElementById('dispTxCat').innerText = val; closeModal(''); };
         window.closeModal = closeModal;
         
         window.openGoogleAuthModal = () => {
             if(currentUser) {
-                if(confirm("Yakin ingin logout dari Cloud? Aplikasi akan memutus sinkronisasi server.")) {
+                if(confirm("Logout dari Cloud? Sinkronisasi akan terputus.")) {
                     signOut(auth).then(() => {
-                        profile.googleLinked = false; profile.googleEmail = '';
-                        localStorage.setItem('user_profile', JSON.stringify(profile));
-                        showToast("Logout berhasil", "success");
-                        closeModal('profileViewModal');
+                        profile.googleLinked = false; profile.googleEmail = ''; localStorage.setItem('user_profile', JSON.stringify(profile));
+                        showToast("Logout berhasil", "success"); closeModal('profileViewModal');
                     });
                 }
             } else { document.getElementById('googleAuthModal').classList.add('active'); }
@@ -632,10 +610,7 @@
             document.getElementById('viewTotalMasuk').innerText = formatRp(inT);
             document.getElementById('viewTotalKeluar').innerText = formatRp(outT);
             
-            const stat = document.getElementById('viewGoogleStatus');
-            const btnText = document.getElementById('textGoogleLink');
-            const btn = document.getElementById('btnGoogleLink');
-            
+            const stat = document.getElementById('viewGoogleStatus'); const btnText = document.getElementById('textGoogleLink'); const btn = document.getElementById('btnGoogleLink');
             if(currentUser) {
                 stat.innerHTML = `<span style="color:var(--hijau); font-weight:700;">${currentUser.email}</span>`;
                 btnText.innerText = "Logout"; btn.style.borderColor = "var(--merah)"; btn.style.color = "var(--merah)";
@@ -647,71 +622,50 @@
         };
 
         // ==========================================
-        // 7. SISTEM OTORISASI GANDA (BIOMETRIK & PIN)
+        // 7. WEBAUTHN BIOMETRIK (ANTI-BLOKIR) & PIN
         // ==========================================
 
         window.requestProfileEdit = () => {
             if(profile.pin && profile.pin !== '') {
                 closeModal('profileViewModal');
                 document.getElementById('inputAuthPin').value = '';
-                document.getElementById('pinAuthModal').classList.add('active');
-            } else { 
-                window.openProfileEdit(); 
-            }
+                
+                // Tembak sidik jari otomatis. Jika gagal, panggil pinAuthModal
+                if (window.PublicKeyCredential) {
+                    verifyBiometric('edit');
+                } else {
+                    document.getElementById('pinAuthModal').classList.add('active');
+                }
+            } else { window.openProfileEdit(); }
         };
 
         window.initResetSequence = () => {
-            if (!currentUser) {
-                showToast("DITOLAK! Anda harus terhubung ke Cloud (Google) untuk mereset sistem.", "error");
-                return;
-            }
-            if (!profile.pin || profile.pin.trim() === '') {
-                showToast("DITOLAK! Buat Security PIN di Edit Profil terlebih dahulu.", "error");
-                return;
-            }
-            closeModal('profileViewModal');
-            document.getElementById('inputResetPin').value = '';
+            if (!currentUser) { showToast("Akses Ditolak: Wajib sinkron Google.", "error"); return; }
+            if (!profile.pin || profile.pin.trim() === '') { showToast("Wajib buat PIN di Edit Profil.", "error"); return; }
+            closeModal('profileViewModal'); document.getElementById('inputResetPin').value = '';
             document.getElementById('resetPinModal').classList.add('active');
         };
 
-        // Mesin Utama WebAuthn - Anti Blokir Android
         window.verifyBiometric = async (actionType) => {
             if (!window.isSecureContext) {
-                showToast("Ditolak: Biometrik WAJIB diakses via jalur aman (HTTPS).", "error");
-                return;
-            }
-            if (!window.PublicKeyCredential) {
-                showToast("Ditolak: Browser/HP Anda tidak mendukung sidik jari web.", "error");
+                showToast("Biometrik wajib via HTTPS.", "error");
+                document.getElementById(actionType === 'edit' ? 'pinAuthModal' : 'resetPinModal').classList.add('active');
                 return;
             }
 
             try {
-                const randomChallenge = new Uint8Array(32);
-                window.crypto.getRandomValues(randomChallenge);
-                const randomUserId = new Uint8Array(16);
-                window.crypto.getRandomValues(randomUserId);
-
-                const currentDomain = window.location.hostname;
+                const randomChallenge = new Uint8Array(32); window.crypto.getRandomValues(randomChallenge);
+                const randomUserId = new Uint8Array(16); window.crypto.getRandomValues(randomUserId);
 
                 const publicKeyOptions = {
                     challenge: randomChallenge,
-                    rp: { 
-                        name: "Enterprise Finance Dashboard", 
-                        id: currentDomain 
-                    }, 
-                    user: {
-                        id: randomUserId,
-                        name: profile.googleEmail || "admin@enterprise.local",
-                        displayName: profile.name || "Admin"
-                    },
-                    pubKeyCredParams: [
-                        {alg: -7, type: "public-key"},
-                        {alg: -257, type: "public-key"}
-                    ],
+                    rp: { name: "Finance App", id: window.location.hostname }, 
+                    user: { id: randomUserId, name: profile.googleEmail || "admin", displayName: profile.name || "Admin" },
+                    pubKeyCredParams: [{alg: -7, type: "public-key"}, {alg: -257, type: "public-key"}],
                     authenticatorSelection: {
                         authenticatorAttachment: "platform", 
                         userVerification: "required", 
-                        residentKey: "discouraged" // INI KUNCI AGAR ANDROID TIDAK MEMAKSA SIMPAN PASSKEY
+                        residentKey: "discouraged" // PENTING: Jangan paksa Android simpan passkey jika server tidak memintanya
                     },
                     timeout: 60000,
                     attestation: "none"
@@ -720,40 +674,23 @@
                 const credential = await navigator.credentials.create({ publicKey: publicKeyOptions });
                 
                 if(credential) {
-                    showToast("Otorisasi Biometrik Sah", "success");
-                    if (actionType === 'edit') {
-                        closeModal('pinAuthModal');
-                        window.openProfileEdit();
-                    } else if (actionType === 'reset') {
-                        closeModal('resetPinModal');
-                        document.getElementById('resetConfirmModal').classList.add('active');
-                    }
+                    if (actionType === 'edit') { closeModal('pinAuthModal'); window.openProfileEdit(); } 
+                    else if (actionType === 'reset') { closeModal('resetPinModal'); document.getElementById('resetConfirmModal').classList.add('active'); }
                 }
             } catch (err) {
-                console.error("Biometrik Error:", err);
-                if (err.name === 'NotAllowedError') {
-                    showToast("Dibatalkan oleh OS/Pengguna.", "error");
-                } else {
-                    showToast("Sidik Jari gagal. Silakan gunakan PIN.", "error");
-                }
+                console.warn(err);
+                showToast("Gunakan PIN manual.", "error");
+                // Munculkan fallback
+                document.getElementById(actionType === 'edit' ? 'pinAuthModal' : 'resetPinModal').classList.add('active');
             }
         };
 
         window.verifyPinAuth = (actionType) => {
-            const inputId = actionType === 'edit' ? 'inputAuthPin' : 'inputResetPin';
-            const inputVal = document.getElementById(inputId).value;
-
+            const inputVal = document.getElementById(actionType === 'edit' ? 'inputAuthPin' : 'inputResetPin').value;
             if (inputVal === profile.pin) {
-                if (actionType === 'edit') {
-                    closeModal('pinAuthModal');
-                    window.openProfileEdit();
-                } else if (actionType === 'reset') {
-                    closeModal('resetPinModal');
-                    document.getElementById('resetConfirmModal').classList.add('active');
-                }
-            } else {
-                showToast("PIN Salah!", "error");
-            }
+                if (actionType === 'edit') { closeModal('pinAuthModal'); window.openProfileEdit(); } 
+                else if (actionType === 'reset') { closeModal('resetPinModal'); document.getElementById('resetConfirmModal').classList.add('active'); }
+            } else { showToast("PIN Salah!", "error"); }
         };
 
         window.openProfileEdit = () => {
@@ -765,34 +702,18 @@
             document.getElementById('profileEditModal').classList.add('active');
         };
 
-        // Form Edit Profil
+        // Form Profil Logic
         document.getElementById('profileUploader').addEventListener('change', function(e) {
             const f = e.target.files[0]; 
-            if(f) { 
-                const r = new FileReader(); 
-                r.onload = function(evt) { 
-                    profile.photo = evt.target.result; 
-                    document.getElementById('editProfileImg').src = profile.photo; 
-                }; 
-                r.readAsDataURL(f); 
-            }
+            if(f) { const r = new FileReader(); r.onload = function(evt) { profile.photo = evt.target.result; document.getElementById('editProfileImg').src = profile.photo; }; r.readAsDataURL(f); }
         });
 
         document.getElementById('editBirth').addEventListener('input', function(e) {
-            let v = e.target.value.replace(/\D/g, ''); 
-            if (v.length > 8) v = v.substring(0, 8);
-            
+            let v = e.target.value.replace(/\D/g, ''); if (v.length > 8) v = v.substring(0, 8);
             let hari = v.substring(0, 2); let bulan = v.substring(2, 4); let tahun = v.substring(4, 8);
-            
-            if (hari.length === 2 && parseInt(hari) > 31) hari = '31';
-            if (hari.length === 2 && parseInt(hari) === 0) hari = '01';
-            if (bulan.length === 2 && parseInt(bulan) > 12) bulan = '12';
-            if (bulan.length === 2 && parseInt(bulan) === 0) bulan = '01';
-            
-            let finalFormat = hari;
-            if (v.length >= 3) finalFormat += '/' + bulan;
-            if (v.length >= 5) finalFormat += '/' + tahun;
-            
+            if (hari.length === 2 && parseInt(hari) > 31) hari = '31'; if (hari.length === 2 && parseInt(hari) === 0) hari = '01';
+            if (bulan.length === 2 && parseInt(bulan) > 12) bulan = '12'; if (bulan.length === 2 && parseInt(bulan) === 0) bulan = '01';
+            let finalFormat = hari; if (v.length >= 3) finalFormat += '/' + bulan; if (v.length >= 5) finalFormat += '/' + tahun;
             e.target.value = finalFormat;
         });
 
@@ -803,302 +724,176 @@
             profile.pin = document.getElementById('editPin').value;
             
             if (currentUser) {
-                try {
-                    showToast("Menyinkronkan profil ke server...", "success");
-                    await setDoc(doc(dbFirestore, `users/${currentUser.uid}/profile/data`), profile);
-                } catch (e) { showToast("Gagal menyinkronkan ke server.", "error"); return; }
+                try { await setDoc(doc(dbFirestore, `users/${currentUser.uid}/profile/data`), profile); } 
+                catch (e) { showToast("Gagal sync ke server.", "error"); return; }
             }
-
             localStorage.setItem('user_profile', JSON.stringify(profile));
             initAppHeader(); closeModal('profileEditModal'); showToast("Profil Disimpan");
         };
 
-        // Eksekusi Factory Reset
         window.executeFactoryReset = async () => {
             if (!currentUser) return;
-
-            showToast("Memulai proses pemusnahan data...", "success");
-            
-            db = [];
-            localStorage.removeItem('finance_modern_db');
-
+            showToast("Memulai reset...", "success"); db = []; localStorage.removeItem('finance_modern_db');
             try {
-                const txRef = collection(dbFirestore, `users/${currentUser.uid}/transactions`);
-                const snapshot = await getDocs(txRef);
-                const deletePromises = [];
-                
-                snapshot.forEach((docItem) => {
-                    deletePromises.push(deleteDoc(doc(dbFirestore, `users/${currentUser.uid}/transactions/${docItem.id}`)));
-                });
-                
-                await Promise.all(deletePromises);
-                showToast("Data server berhasil dibumihanguskan.", "success");
-            } catch (e) {
-                console.error(e);
-                showToast("Gagal menghapus sebagian data server.", "error");
-            }
-
-            closeModal('resetConfirmModal');
-            updateUI();
-            showToast("Reset Total Berhasil. Saldo 0.", "success");
+                const snapshot = await getDocs(collection(dbFirestore, `users/${currentUser.uid}/transactions`));
+                const promises = []; snapshot.forEach((docItem) => promises.push(deleteDoc(doc(dbFirestore, `users/${currentUser.uid}/transactions/${docItem.id}`))));
+                await Promise.all(promises); showToast("Data server musnah.", "success");
+            } catch (e) { showToast("Gagal reset.", "error"); }
+            closeModal('resetConfirmModal'); updateUI();
         };
 
         // ==========================================
-        // 8. FUNGSI RENDER CHART & UI
+        // 8. CHART & UI
         // ==========================================
-        window.toggleExpandStat = (clickedElement, containerId) => {
-            const items = document.getElementById(containerId).children;
-            if (clickedElement.classList.contains('expanded')) {
-                for(let item of items) item.className = 'expand-item';
-            } else {
-                for(let item of items) item.className = (item === clickedElement) ? 'expand-item expanded' : 'expand-item collapsed';
-            }
-        };
-
-        window.expandChart = (clickedElement, containerId) => {
-            if(!clickedElement.classList.contains('expanded')) {
-                for(let item of document.getElementById(containerId).children) item.className = (item === clickedElement) ? 'expand-item expanded' : 'expand-item collapsed';
-                setTimeout(() => { if(pieChart) pieChart.resize(); if(barChart) barChart.resize(); if(lineChart) lineChart.resize(); }, 500);
-            }
-        };
-
-        window.closeChart = (e, btn) => {
-            e.stopPropagation(); 
-            for(let item of btn.closest('.expand-container').children) item.className = 'expand-item';
-            setTimeout(() => { if(pieChart) pieChart.resize(); if(barChart) barChart.resize(); if(lineChart) lineChart.resize(); }, 500);
-        };
-
-        window.toggleSection = (sectionId, iconId) => { 
-            document.getElementById(sectionId).classList.toggle('hidden'); 
-            document.getElementById(iconId).classList.toggle('rotated'); 
-        };
+        window.toggleExpandStat = (el, id) => { const items = document.getElementById(id).children; if (el.classList.contains('expanded')) { for(let i of items) i.className = 'expand-item'; } else { for(let i of items) i.className = (i === el) ? 'expand-item expanded' : 'expand-item collapsed'; } };
+        window.expandChart = (el, id) => { if(!el.classList.contains('expanded')) { for(let i of document.getElementById(id).children) i.className = (i === el) ? 'expand-item expanded' : 'expand-item collapsed'; setTimeout(() => { if(pieChart) pieChart.resize(); if(barChart) barChart.resize(); if(lineChart) lineChart.resize(); }, 500); } };
+        window.closeChart = (e, btn) => { e.stopPropagation(); for(let i of btn.closest('.expand-container').children) i.className = 'expand-item'; setTimeout(() => { if(pieChart) pieChart.resize(); if(barChart) barChart.resize(); if(lineChart) lineChart.resize(); }, 500); };
+        window.toggleSection = (sec, icn) => { document.getElementById(sec).classList.toggle('hidden'); document.getElementById(icn).classList.toggle('rotated'); };
 
         // ==========================================
-        // 9. INPUT TRANSAKSI (SINKRONISASI FIRESTORE & LOKAL)
+        // 9. TRANSAKSI
         // ==========================================
         let isLoanMode = false;
-        window.quickInput = (type, category, desc, isLoan = false) => {
-            isLoanMode = isLoan;
-            document.getElementById('tx-type').value = type;
+        window.quickInput = (type, cat, desc, isLoan = false) => {
+            isLoanMode = isLoan; document.getElementById('tx-type').value = type;
             document.getElementById('modal-title').innerText = isLoan ? 'Catat Uang Dipinjam' : (type === 'masuk' ? 'Input Pemasukan' : 'Input Pengeluaran');
+            document.getElementById('tx-desc').value = ''; document.getElementById('tx-category-manual').value = ''; document.getElementById('tx-borrower').value = '';
             
-            document.getElementById('tx-desc').value = '';
-            document.getElementById('tx-category-manual').value = '';
-            document.getElementById('tx-borrower').value = '';
-            
-            if(category === 'MANUAL') {
-                document.getElementById('catSelectWrapper').style.display = 'none';
-                document.getElementById('catInputWrapper').style.display = 'block';
-                document.getElementById('label-kategori').innerText = 'Ketik Nama / Kategori';
-            } else {
-                document.getElementById('catSelectWrapper').style.display = 'block';
-                document.getElementById('catInputWrapper').style.display = 'none';
-                document.getElementById('label-kategori').innerText = 'Kategori';
-                
-                const optsBox = document.getElementById('catOptionsBox');
-                const catArr = type==='masuk' ? categories.masuk : categories.keluar;
-                optsBox.innerHTML = catArr.map(c => `<div class="custom-option" onclick="selectCategory('${c}')">${c}</div>`).join('');
-                if(!catArr.includes(category)) optsBox.innerHTML += `<div class="custom-option" onclick="selectCategory('${category}')">${category}</div>`;
-                window.selectCategory(category);
+            if(cat === 'MANUAL') { document.getElementById('catSelectWrapper').style.display = 'none'; document.getElementById('catInputWrapper').style.display = 'block'; document.getElementById('label-kategori').innerText = 'Ketik Nama / Kategori'; } 
+            else { document.getElementById('catSelectWrapper').style.display = 'block'; document.getElementById('catInputWrapper').style.display = 'none'; document.getElementById('label-kategori').innerText = 'Kategori';
+                const box = document.getElementById('catOptionsBox'); const arr = type==='masuk' ? categories.masuk : categories.keluar;
+                box.innerHTML = arr.map(c => `<div class="custom-option" onclick="selectCategory('${c}')">${c}</div>`).join('');
+                if(!arr.includes(cat)) box.innerHTML += `<div class="custom-option" onclick="selectCategory('${cat}')">${cat}</div>`;
+                window.selectCategory(cat);
             }
 
             const bw = document.getElementById('borrowerWrapper');
             if(isLoanMode) { bw.style.display = 'block'; document.getElementById('tx-desc').value = 'Uang Dipinjamkan'; } 
             else { bw.style.display = 'none'; document.getElementById('tx-desc').value = desc; }
             
-            document.getElementById('tx-amount').value = ''; rawAmount = 0;
-            document.getElementById('txModal').classList.add('active');
-            
-            setTimeout(() => { 
-                if(isLoanMode) document.getElementById('tx-borrower').focus();
-                else if(category==='MANUAL') document.getElementById('tx-category-manual').focus(); 
-                else document.getElementById('tx-amount').focus(); 
-            }, 300);
+            document.getElementById('tx-amount').value = ''; rawAmount = 0; document.getElementById('txModal').classList.add('active');
+            setTimeout(() => { if(isLoanMode) document.getElementById('tx-borrower').focus(); else if(cat==='MANUAL') document.getElementById('tx-category-manual').focus(); else document.getElementById('tx-amount').focus(); }, 300);
         };
 
-        document.getElementById('tx-amount').addEventListener('input', function() { 
-            let v = this.value.replace(/[^0-9]/g, ''); 
-            if(v==='') { rawAmount=0; this.value=''; return; } 
-            rawAmount = parseInt(v, 10); this.value = rawAmount.toLocaleString('id-ID'); 
-        });
+        document.getElementById('tx-amount').addEventListener('input', function() { let v = this.value.replace(/[^0-9]/g, ''); if(v==='') { rawAmount=0; this.value=''; return; } rawAmount = parseInt(v, 10); this.value = rawAmount.toLocaleString('id-ID'); });
 
         let confirmAction = null;
-        window.openConfirm = (title, desc, onConfirm) => {
-            document.getElementById('confirmTitle').innerText = title;
-            document.getElementById('confirmDesc').innerText = desc;
-            confirmAction = onConfirm;
-            document.getElementById('confirmModal').classList.add('active');
-        };
-        
+        window.openConfirm = (t, d, fn) => { document.getElementById('confirmTitle').innerText = t; document.getElementById('confirmDesc').innerText = d; confirmAction = fn; document.getElementById('confirmModal').classList.add('active'); };
         document.getElementById('btnConfirmYes').addEventListener('click', () => { if(confirmAction) confirmAction(); closeModal('confirmModal'); });
 
         window.lunasiPinjaman = (txId) => {
-            const txIndex = db.findIndex(t => t.id === txId);
-            if(txIndex > -1) {
-                const tx = db[txIndex];
-                window.openConfirm("Pelunasan", `Uang ${formatRp(tx.amount)} dari ${tx.borrower} kembali ke tabungan?`, () => {
-                    const lunasData = { wallet: 'tabungan', type: 'masuk', category: 'Lunas Pinjaman', desc: `Dikembalikan oleh ${tx.borrower}`, amount: tx.amount, date: new Date().toISOString() };
-                    
-                    if(currentUser) {
-                        updateDoc(doc(dbFirestore, `users/${currentUser.uid}/transactions/${tx.id}`), { status: 'lunas_pinjaman' });
-                        addDoc(collection(dbFirestore, `users/${currentUser.uid}/transactions`), lunasData);
-                    } else {
-                        db[txIndex].status = 'lunas_pinjaman'; 
-                        lunasData.id = Date.now();
-                        db.push(lunasData);
-                        localStorage.setItem('finance_modern_db', JSON.stringify(db));
-                        updateUI();
-                    }
-                    showToast("Pinjaman Lunas", "success");
+            const idx = db.findIndex(t => t.id === txId);
+            if(idx > -1) {
+                const tx = db[idx];
+                window.openConfirm("Pelunasan", `Uang ${formatRp(tx.amount)} kembali ke tabungan?`, () => {
+                    const lData = { wallet: 'tabungan', type: 'masuk', category: 'Lunas Pinjaman', desc: `Dari ${tx.borrower}`, amount: tx.amount, date: new Date().toISOString() };
+                    if(currentUser) { updateDoc(doc(dbFirestore, `users/${currentUser.uid}/transactions/${tx.id}`), { status: 'lunas_pinjaman' }); addDoc(collection(dbFirestore, `users/${currentUser.uid}/transactions`), lData); } 
+                    else { db[idx].status = 'lunas_pinjaman'; lData.id = Date.now(); db.push(lData); localStorage.setItem('finance_modern_db', JSON.stringify(db)); updateUI(); }
+                    showToast("Lunas", "success");
                 });
             }
         };
 
         function checkAndAutoLunasHutang() {
-            let sIn = 0, sOut = 0;
-            db.filter(t => t.wallet === 'harian').forEach(t => { if(t.type === 'masuk') sIn += t.amount; else sOut += t.amount; });
-            if((sIn - sOut) >= 0) {
-                let debtCleared = false;
-                db.forEach(t => {
-                    if(t.wallet === 'harian' && t.status === 'hutang') {
-                        if(currentUser) updateDoc(doc(dbFirestore, `users/${currentUser.uid}/transactions/${t.id}`), { status: 'lunas_hutang' });
-                        else t.status = 'lunas_hutang';
-                        debtCleared = true;
-                    }
-                });
-                if(debtCleared && !currentUser) localStorage.setItem('finance_modern_db', JSON.stringify(db));
-                if(debtCleared) showToast("Hutang otomatis lunas!", "success");
+            let inT = 0, outT = 0; db.filter(t => t.wallet === 'harian').forEach(t => { if(t.type === 'masuk') inT += t.amount; else outT += t.amount; });
+            if((inT - outT) >= 0) {
+                let clear = false;
+                db.forEach(t => { if(t.wallet === 'harian' && t.status === 'hutang') { if(currentUser) updateDoc(doc(dbFirestore, `users/${currentUser.uid}/transactions/${t.id}`), { status: 'lunas_hutang' }); else t.status = 'lunas_hutang'; clear = true; } });
+                if(clear && !currentUser) localStorage.setItem('finance_modern_db', JSON.stringify(db));
+                if(clear) showToast("Hutang otomatis lunas!", "success");
             }
         }
 
         document.getElementById('btnExecuteTx').addEventListener('click', () => {
-            if(rawAmount <= 0) { showToast("Nominal tidak boleh nol", "error"); return; }
+            if(rawAmount <= 0) { showToast("Nominal 0", "error"); return; }
             const type = document.getElementById('tx-type').value;
             let cF = document.getElementById('catInputWrapper').style.display === 'block' ? document.getElementById('tx-category-manual').value.trim() : document.getElementById('tx-category').value;
             let dF = document.getElementById('tx-desc').value.trim();
-            
-            if(!cF || !dF) { showToast("Kategori & Deskripsi wajib diisi", "error"); return; }
+            if(!cF || !dF) { showToast("Isi data", "error"); return; }
             cF = smartCapitalize(cF); dF = smartCapitalize(dF);
             
-            let status = 'normal'; let borrowerName = '';
-
+            let stat = 'normal'; let brw = '';
             if(activeWallet === 'harian' && type === 'keluar') {
-                let sIn = 0, sOut = 0; db.filter(t => t.wallet === 'harian').forEach(t => { if(t.type === 'masuk') sIn += t.amount; else sOut += t.amount; });
-                if((sIn - sOut) - rawAmount < 0) { status = 'hutang'; showToast("Dicatat sebagai Hutang", "error"); }
+                let sI = 0, sO = 0; db.filter(t => t.wallet === 'harian').forEach(t => { if(t.type === 'masuk') sI += t.amount; else sO += t.amount; });
+                if((sI - sO) - rawAmount < 0) { stat = 'hutang'; showToast("Dicatat Hutang", "error"); }
             } else if (activeWallet === 'tabungan' && type === 'keluar') {
-                let sIn = 0, sOut = 0; db.filter(t => t.wallet === 'tabungan').forEach(t => { if(t.type === 'masuk') sIn += t.amount; else sOut += t.amount; });
-                if(rawAmount > (sIn - sOut)) { showToast("Ditolak: Saldo kurang!", "error"); return; }
-                if (isLoanMode) {
-                    borrowerName = smartCapitalize(document.getElementById('tx-borrower').value.trim());
-                    if(!borrowerName) { showToast("Nama peminjam wajib diisi", "error"); return; }
-                    status = 'dipinjam'; showToast(`Dipinjamkan ke ${borrowerName}`);
-                }
+                let sI = 0, sO = 0; db.filter(t => t.wallet === 'tabungan').forEach(t => { if(t.type === 'masuk') sI += t.amount; else sO += t.amount; });
+                if(rawAmount > (sI - sO)) { showToast("Saldo kurang!", "error"); return; }
+                if (isLoanMode) { brw = smartCapitalize(document.getElementById('tx-borrower').value.trim()); if(!brw) { showToast("Isi peminjam", "error"); return; } stat = 'dipinjam'; }
             }
 
-            const txData = { wallet: activeWallet, type: type, category: cF, desc: dF, borrower: borrowerName, status: status, amount: rawAmount, date: new Date().toISOString() };
-
+            const data = { wallet: activeWallet, type: type, category: cF, desc: dF, borrower: brw, status: stat, amount: rawAmount, date: new Date().toISOString() };
             if(currentUser) {
-                addDoc(collection(dbFirestore, `users/${currentUser.uid}/transactions`), txData).then(()=>{
-                    if(activeWallet === 'harian' && type === 'masuk') checkAndAutoLunasHutang();
-                });
-                closeModal('txModal'); showToast("Data diproses...", "success");
+                addDoc(collection(dbFirestore, `users/${currentUser.uid}/transactions`), data).then(()=>{ if(activeWallet === 'harian' && type === 'masuk') checkAndAutoLunasHutang(); });
+                closeModal('txModal'); showToast("Proses...");
             } else {
-                txData.id = Date.now();
-                db.push(txData);
-                localStorage.setItem('finance_modern_db', JSON.stringify(db));
-                closeModal('txModal');
-                if(activeWallet === 'harian' && type === 'masuk') checkAndAutoLunasHutang();
-                updateUI(); showToast("Tersimpan Lokal");
+                data.id = Date.now(); db.push(data); localStorage.setItem('finance_modern_db', JSON.stringify(db));
+                closeModal('txModal'); if(activeWallet === 'harian' && type === 'masuk') checkAndAutoLunasHutang(); updateUI(); showToast("Tersimpan Lokal");
             }
         });
 
         // ==========================================
-        // 10. INisialisasi & RENDER DATA
+        // 10. RENDER
         // ==========================================
         function renderShortcuts() {
             const c = document.getElementById('quickActionsContainer');
             if(activeWallet === 'harian') {
                 c.className = 'quick-actions-wrap';
-                c.innerHTML = `
-                   <button class="btn-quick glow-merah" onclick="quickInput('keluar', 'Makan', 'Beli Makan')">${svgs.makan} Beli Makan</button>
-                   <button class="btn-quick glow-merah" onclick="quickInput('keluar', 'Transport', 'Isi Bensin')">${svgs.transport} Transport</button>
-                   <button class="btn-quick glow-biru" onclick="quickInput('masuk', 'Top-Up', 'Isi Saldo')">${svgs.uang} Top-Up Harian</button>
-                   <button class="btn-quick glow-kuning" onclick="quickInput('keluar', 'MANUAL', '')">${svgs.plus} Lainnya (-)</button>
-                   <button class="btn-quick glow-hijau" onclick="quickInput('masuk', 'MANUAL', '')">${svgs.plus} Lainnya (+)</button>`;
+                c.innerHTML = `<button class="btn-quick glow-merah" onclick="quickInput('keluar', 'Makan', 'Beli Makan')">${svgs.makan} Beli Makan</button><button class="btn-quick glow-merah" onclick="quickInput('keluar', 'Transport', 'Isi Bensin')">${svgs.transport} Transport</button><button class="btn-quick glow-biru" onclick="quickInput('masuk', 'Top-Up', 'Isi Saldo')">${svgs.uang} Top-Up Harian</button><button class="btn-quick glow-kuning" onclick="quickInput('keluar', 'MANUAL', '')">${svgs.plus} Lainnya (-)</button><button class="btn-quick glow-hijau" onclick="quickInput('masuk', 'MANUAL', '')">${svgs.plus} Lainnya (+)</button>`;
             } else {
                 c.className = 'quick-actions-wrap grid-split-3';
-                c.innerHTML = `
-                   <button class="btn-quick glow-kuning" onclick="quickInput('masuk', 'Top-Up', 'Setor Tabungan')">${svgs.uang} Setor</button>
-                   <button class="btn-quick glow-merah" onclick="quickInput('keluar', 'Lainnya', 'Tarik Tabungan')">${svgs.atm} Tarik</button>
-                   <button class="btn-quick glow-ungu" onclick="quickInput('keluar', 'Dipinjam', 'Pinjamkan Uang', true)">${svgs.pinjam} Dipinjam</button>`;
+                c.innerHTML = `<button class="btn-quick glow-kuning" onclick="quickInput('masuk', 'Top-Up', 'Setor Tabungan')">${svgs.uang} Setor</button><button class="btn-quick glow-merah" onclick="quickInput('keluar', 'Lainnya', 'Tarik Tabungan')">${svgs.atm} Tarik</button><button class="btn-quick glow-ungu" onclick="quickInput('keluar', 'Dipinjam', 'Pinjamkan Uang', true)">${svgs.pinjam} Dipinjam</button>`;
             }
         }
 
         function updateUI() {
             const today = new Date(); today.setHours(0,0,0,0);
-            
-            let tInGlobal = 0, tOutGlobal = 0;
-            db.filter(t => t.wallet === 'harian').forEach(t => { if(t.type === 'masuk') tInGlobal += t.amount; else tOutGlobal += t.amount; });
-            
-            const debtBanner = document.getElementById('debtBannerContainer');
-            if(activeWallet === 'harian' && (tInGlobal - tOutGlobal) < 0) {
-                debtBanner.innerHTML = `<div class="hutang-banner"><div><span style="font-size:11px; font-weight:900; color:var(--merah); text-transform:uppercase;">Status Defisit</span><br><span style="font-size:16px; font-weight:900; color:var(--putih);">Saldo Minus: ${formatRp(Math.abs(tInGlobal - tOutGlobal))}</span></div><button class="btn-quick glow-biru" style="padding:10px 15px; font-size:12px;" onclick="quickInput('masuk','Top-Up','Tutup Hutang')">Top-Up Sekarang</button></div>`;
-            } else { debtBanner.innerHTML = ''; }
+            let tI = 0, tO = 0; db.filter(t => t.wallet === 'harian').forEach(t => { if(t.type === 'masuk') tI += t.amount; else tO += t.amount; });
+            const ban = document.getElementById('debtBannerContainer');
+            if(activeWallet === 'harian' && (tI - tO) < 0) ban.innerHTML = `<div class="hutang-banner"><div><span style="font-size:11px; font-weight:900; color:var(--merah);">Status Defisit</span><br><span style="font-size:16px; font-weight:900;">Minus: ${formatRp(Math.abs(tI - tO))}</span></div><button class="btn-quick glow-biru" style="padding:10px 15px; font-size:12px;" onclick="quickInput('masuk','Top-Up','Tutup Hutang')">Top-Up</button></div>`;
+            else ban.innerHTML = '';
 
-            const filteredData = db.filter(tx => {
-                if(tx.wallet !== activeWallet) return false;
-                if(currentTimeFilter === 0) return true;
-                const tDate = new Date(tx.date); tDate.setHours(0,0,0,0);
-                return Math.floor(Math.abs(today - tDate) / (1000 * 60 * 60 * 24)) <= currentTimeFilter;
+            const fd = db.filter(tx => {
+                if(tx.wallet !== activeWallet) return false; if(currentTimeFilter === 0) return true;
+                const d = new Date(tx.date); d.setHours(0,0,0,0); return Math.floor(Math.abs(today - d) / 86400000) <= currentTimeFilter;
             });
 
-            let tM = 0, tK = 0;
-            filteredData.forEach(tx => { if(tx.type === 'masuk') tM += tx.amount; else tK += tx.amount; });
-
-            document.getElementById('disp-saldo').innerText = formatRp(tM - tK);
-            document.getElementById('disp-masuk').innerText = formatRp(tM);
-            document.getElementById('disp-keluar').innerText = formatRp(tK);
-
-            renderTable(filteredData); renderCharts(filteredData);
+            let m = 0, k = 0; fd.forEach(t => { if(t.type === 'masuk') m += t.amount; else k += t.amount; });
+            document.getElementById('disp-saldo').innerText = formatRp(m - k); document.getElementById('disp-masuk').innerText = formatRp(m); document.getElementById('disp-keluar').innerText = formatRp(k);
+            renderTable(fd); renderCharts(fd);
         }
 
         function renderTable(data) {
-            const tbody = document.getElementById('table-body'); tbody.innerHTML = '';
-            const sorted = [...data].sort((a,b) => new Date(b.date) - new Date(a.date));
-            
-            sorted.forEach(tx => {
-                const isM = tx.type === 'masuk'; let cClass = isM ? 'var(--biru)' : 'var(--merah)';
-                let descRender = `<span style="font-weight:700;">${tx.desc}</span>`;
-                if(tx.status === 'dipinjam') descRender = `<span style="font-weight:700; color:#a855f7;">${tx.desc}</span><br><span style="font-size:11px; color:var(--text-muted);">Ke: ${tx.borrower}</span>`;
+            const t = document.getElementById('table-body'); t.innerHTML = '';
+            [...data].sort((a,b) => new Date(b.date) - new Date(a.date)).forEach(tx => {
+                const iM = tx.type === 'masuk'; let c = iM ? 'var(--biru)' : 'var(--merah)';
+                let dr = `<span style="font-weight:700;">${tx.desc}</span>`;
+                if(tx.status === 'dipinjam') dr = `<span style="font-weight:700; color:#a855f7;">${tx.desc}</span><br><span style="font-size:11px; color:var(--text-muted);">Ke: ${tx.borrower}</span>`;
                 
-                let catRender = `<div class="badge-cat" style="border: 1px solid ${cClass}; color:${cClass}; background:rgba(0,0,0,0.5);">${tx.category}</div>`;
-                if(tx.status === 'hutang') catRender = `<div style="display:flex; flex-direction:column; gap:5px;"><div class="badge-cat" style="border: 1px solid var(--merah); color:var(--merah); background:rgba(239,68,68,0.2);">LUNASI HUTANG</div></div>`;
-                else if (tx.status === 'lunas_hutang') catRender = `<div class="badge-cat" style="border: 1px solid var(--hijau); color:var(--hijau); background:rgba(16,185,129,0.1);">LUNAS</div>`;
-                else if (tx.status === 'dipinjam') { cClass = '#a855f7'; catRender = `<div style="display:flex; flex-direction:column; gap:5px;"><div class="badge-cat" style="border: 1px solid ${cClass}; color:${cClass}; background:rgba(168,85,247,0.2);">DIPINJAM</div><button class="btn-lunasi" onclick="lunasiPinjaman('${tx.id}')">TANDAI LUNAS</button></div>`; }
-                else if (tx.status === 'lunas_pinjaman') catRender = `<div class="badge-cat" style="border: 1px solid var(--hijau); color:var(--hijau); background:rgba(16,185,129,0.1);">PINJAMAN LUNAS</div>`;
+                let cr = `<div class="badge-cat" style="border: 1px solid ${c}; color:${c}; background:rgba(0,0,0,0.5);">${tx.category}</div>`;
+                if(tx.status === 'hutang') cr = `<div class="badge-cat" style="border: 1px solid var(--merah); color:var(--merah); background:rgba(239,68,68,0.2);">HUTANG</div>`;
+                else if (tx.status === 'lunas_hutang') cr = `<div class="badge-cat" style="border: 1px solid var(--hijau); color:var(--hijau); background:rgba(16,185,129,0.1);">LUNAS</div>`;
+                else if (tx.status === 'dipinjam') cr = `<div style="display:flex; flex-direction:column; gap:5px;"><div class="badge-cat" style="border: 1px solid #a855f7; color:#a855f7; background:rgba(168,85,247,0.2);">DIPINJAM</div><button class="btn-lunasi" onclick="lunasiPinjaman('${tx.id}')">TANDAI LUNAS</button></div>`;
+                else if (tx.status === 'lunas_pinjaman') cr = `<div class="badge-cat" style="border: 1px solid var(--hijau); color:var(--hijau); background:rgba(16,185,129,0.1);">LUNAS</div>`;
 
-                tbody.innerHTML += `<tr><td style="color:var(--text-muted); font-size:11px;">${formatDetailDate(tx.date).split(' - ')[0]}<br>${formatDetailDate(tx.date).split(' - ')[1]}</td><td>${catRender}</td><td>${descRender}</td><td class="amt-cell" style="color:${cClass};">${isM?'+':'-'}${formatRp(tx.amount).padStart(12, ' ')}</td></tr>`;
+                t.innerHTML += `<tr><td style="color:var(--text-muted); font-size:11px;">${formatDetailDate(tx.date).split(' - ')[0]}<br>${formatDetailDate(tx.date).split(' - ')[1]}</td><td>${cr}</td><td>${dr}</td><td class="amt-cell" style="color:${iM?'var(--biru)':'var(--merah)'};">${iM?'+':'-'}${formatRp(tx.amount)}</td></tr>`;
             });
         }
 
         function renderCharts(data) {
             Chart.defaults.color = '#64748b'; Chart.defaults.font.family = 'Inter';
-            const catA = {}; data.forEach(t => { const k = `${t.category}`; catA[k] = { amt: (catA[k]?.amt||0)+t.amount, typ: t.type }; });
-            const pL = Object.keys(catA);
-            
+            const cA = {}; data.forEach(t => { const k = `${t.category}`; cA[k] = { a: (cA[k]?.a||0)+t.amount, t: t.type }; }); const pL = Object.keys(cA);
             if(pieChart) pieChart.destroy();
-            pieChart = new Chart(document.getElementById('pieChart'), { type: 'doughnut', data: { labels: pL, datasets: [{ data: pL.map(l=>catA[l].amt), backgroundColor: pL.map(l=>catA[l].typ==='masuk'?'#3b82f6':'#ef4444'), borderWidth: 4, borderColor: '#050814' }] }, options: { responsive: true, maintainAspectRatio: false, plugins: { legend: {display: false} } } });
+            pieChart = new Chart(document.getElementById('pieChart'), { type: 'doughnut', data: { labels: pL, datasets: [{ data: pL.map(l=>cA[l].a), backgroundColor: pL.map(l=>cA[l].t==='masuk'?'#3b82f6':'#ef4444'), borderWidth: 4, borderColor: '#050814' }] }, options: { responsive: true, maintainAspectRatio: false, plugins: { legend: {display: false} } } });
 
-            const rTx = [...data].sort((a,b) => new Date(a.date) - new Date(b.date)).slice(-15);
+            const rT = [...data].sort((a,b) => new Date(a.date) - new Date(b.date)).slice(-15);
             if(barChart) barChart.destroy();
-            barChart = new Chart(document.getElementById('barChart'), { type: 'bar', data: { labels: rTx.map(t=>t.desc.substring(0,8)), datasets: [{ data: rTx.map(t=> t.type==='masuk'?t.amount:-t.amount), backgroundColor: rTx.map(t=> t.type==='masuk'?'#3b82f6':'#ef4444'), borderRadius: 4 }] }, options: { responsive: true, maintainAspectRatio: false, plugins: { legend: {display:false} }, scales: {x:{display:false}, y:{grid:{color:'#1e293b'}}} } });
+            barChart = new Chart(document.getElementById('barChart'), { type: 'bar', data: { labels: rT.map(t=>t.desc.substring(0,8)), datasets: [{ data: rT.map(t=> t.type==='masuk'?t.amount:-t.amount), backgroundColor: rT.map(t=> t.type==='masuk'?'#3b82f6':'#ef4444'), borderRadius: 4 }] }, options: { responsive: true, maintainAspectRatio: false, plugins: { legend: {display:false} }, scales: {x:{display:false}, y:{grid:{color:'#1e293b'}}} } });
 
-            let cumIn = 0, cumOut = 0, histIn = [], histOut = [];
-            const sortedData = [...data].sort((a,b)=> new Date(a.date)-new Date(b.date));
-            sortedData.forEach(t => { if(t.type === 'masuk') cumIn += t.amount; else cumOut += t.amount; histIn.push(cumIn); histOut.push(cumOut); });
-
+            let cI = 0, cO = 0, hI = [], hO = [];
+            [...data].sort((a,b)=> new Date(a.date)-new Date(b.date)).forEach(t => { if(t.type === 'masuk') cI += t.amount; else cO += t.amount; hI.push(cI); hO.push(cO); });
             if(lineChart) lineChart.destroy();
-            lineChart = new Chart(document.getElementById('lineChart'), { type: 'line', data: { labels: sortedData.map((_,i)=> `T${i+1}`), datasets: [{ label: 'Pemasukan', data: histIn, borderColor: '#10b981', backgroundColor: 'rgba(16, 185, 129, 0.1)', fill: true, tension: 0.3, pointRadius: 2 }, { label: 'Pengeluaran', data: histOut, borderColor: '#ef4444', backgroundColor: 'rgba(239, 68, 68, 0.1)', fill: true, tension: 0.3, pointRadius: 2 }] }, options: { responsive: true, maintainAspectRatio: false, plugins: { legend: {display:false} }, scales: {x:{display:false}, y:{grid:{color:'#1e293b'}}} } });
+            lineChart = new Chart(document.getElementById('lineChart'), { type: 'line', data: { labels: hI.map((_,i)=> `T${i+1}`), datasets: [{ data: hI, borderColor: '#10b981', backgroundColor: 'rgba(16, 185, 129, 0.1)', fill: true, pointRadius: 2 }, { data: hO, borderColor: '#ef4444', backgroundColor: 'rgba(239, 68, 68, 0.1)', fill: true, pointRadius: 2 }] }, options: { responsive: true, maintainAspectRatio: false, plugins: { legend: {display:false} }, scales: {x:{display:false}, y:{grid:{color:'#1e293b'}}} } });
         }
 
         renderShortcuts(); updateUI();
