@@ -493,7 +493,7 @@
         let pieChart, barChart, lineChart;
 
         const defaultProfile = { 
-            name: 'Guest', pin: '', 
+            name: 'Guest', pin: '', credentialId: '', // Tambahan untuk simpan ID sidik jari
             photo: 'data:image/svg+xml;base64,PHN2ZyB4bWxucz0iaHR0cDovL3d3dy53My5vcmcvMjAwMC9zdmciIHZpZXdCb3g9IjAgMCAyNCAyNCIgZmlsbD0iIzFlMjliYiI+PHBhdGggZD0iTTEyIDJhNSA1IDAgMSAwIDUgNSBNMTIgMTRhNyA3IDAgMCAwLTcgN3YxSDE5di0xYTcgNyAwIDAgMC03LTdaIi8+PC9zdmc+', 
             joinDate: new Date().toISOString(), birthDate: '', gender: 'Rahasia', googleLinked: false, googleEmail: ''
         };
@@ -519,7 +519,7 @@
                 const profileRef = doc(dbFirestore, `users/${user.uid}/profile/data`);
                 try {
                     const docSnap = await getDoc(profileRef);
-                    if (docSnap.exists()) { profile = docSnap.data(); } 
+                    if (docSnap.exists()) { profile = { ...profile, ...docSnap.data() }; } 
                     else {
                         if(profile.name === 'Guest') profile.name = user.displayName || 'Member';
                         profile.photo = user.photoURL || profile.photo;
@@ -630,7 +630,7 @@
                 closeModal('profileViewModal');
                 document.getElementById('inputAuthPin').value = '';
                 
-                // Tembak sidik jari otomatis. Jika gagal, panggil pinAuthModal
+                // Langsung hajar API Biometrik
                 if (window.PublicKeyCredential) {
                     verifyBiometric('edit');
                 } else {
@@ -643,9 +643,15 @@
             if (!currentUser) { showToast("Akses Ditolak: Wajib sinkron Google.", "error"); return; }
             if (!profile.pin || profile.pin.trim() === '') { showToast("Wajib buat PIN di Edit Profil.", "error"); return; }
             closeModal('profileViewModal'); document.getElementById('inputResetPin').value = '';
-            document.getElementById('resetPinModal').classList.add('active');
+            
+            if (window.PublicKeyCredential) {
+                verifyBiometric('reset');
+            } else {
+                document.getElementById('resetPinModal').classList.add('active');
+            }
         };
 
+        // Logika FIDO2 yang Valid (Dua Fase: Registrasi & Otentikasi)
         window.verifyBiometric = async (actionType) => {
             if (!window.isSecureContext) {
                 showToast("Biometrik wajib via HTTPS.", "error");
@@ -654,33 +660,60 @@
             }
 
             try {
-                const randomChallenge = new Uint8Array(32); window.crypto.getRandomValues(randomChallenge);
-                const randomUserId = new Uint8Array(16); window.crypto.getRandomValues(randomUserId);
+                const domain = window.location.hostname;
+                const randomChallenge = new Uint8Array(32); 
+                window.crypto.getRandomValues(randomChallenge);
 
-                const publicKeyOptions = {
-                    challenge: randomChallenge,
-                    rp: { name: "Finance App", id: window.location.hostname }, 
-                    user: { id: randomUserId, name: profile.googleEmail || "admin", displayName: profile.name || "Admin" },
-                    pubKeyCredParams: [{alg: -7, type: "public-key"}, {alg: -257, type: "public-key"}],
-                    authenticatorSelection: {
-                        authenticatorAttachment: "platform", 
-                        userVerification: "required", 
-                        residentKey: "discouraged" // PENTING: Jangan paksa Android simpan passkey jika server tidak memintanya
-                    },
-                    timeout: 60000,
-                    attestation: "none"
-                };
+                // FASE 1: Belum ada kredensial -> Registrasi (Create)
+                if (!profile.credentialId) {
+                    showToast("Mendaftarkan Perangkat...", "success");
+                    const randomUserId = new Uint8Array(16); window.crypto.getRandomValues(randomUserId);
+                    
+                    const createOptions = {
+                        challenge: randomChallenge,
+                        rp: { name: "Finance App", id: domain }, 
+                        user: { id: randomUserId, name: profile.googleEmail || "admin@lokal", displayName: profile.name || "Admin" },
+                        pubKeyCredParams: [{alg: -7, type: "public-key"}, {alg: -257, type: "public-key"}],
+                        authenticatorSelection: { authenticatorAttachment: "platform", userVerification: "required" },
+                        timeout: 60000,
+                        attestation: "none"
+                    };
 
-                const credential = await navigator.credentials.create({ publicKey: publicKeyOptions });
-                
-                if(credential) {
-                    if (actionType === 'edit') { closeModal('pinAuthModal'); window.openProfileEdit(); } 
-                    else if (actionType === 'reset') { closeModal('resetPinModal'); document.getElementById('resetConfirmModal').classList.add('active'); }
+                    const credential = await navigator.credentials.create({ publicKey: createOptions });
+                    
+                    // Simpan ID Kredensial (Hex String)
+                    const credentialIdArray = new Uint8Array(credential.rawId);
+                    profile.credentialId = Array.from(credentialIdArray).map(b => b.toString(16).padStart(2, '0')).join('');
+                    localStorage.setItem('user_profile', JSON.stringify(profile));
+                } 
+                // FASE 2: Sudah ada kredensial -> Otentikasi (Get)
+                else {
+                    const credIdBytes = new Uint8Array(profile.credentialId.match(/.{1,2}/g).map(byte => parseInt(byte, 16)));
+                    
+                    const getOptions = {
+                        challenge: randomChallenge,
+                        allowCredentials: [{
+                            id: credIdBytes,
+                            type: 'public-key',
+                            transports: ['internal']
+                        }],
+                        userVerification: "required",
+                        timeout: 60000
+                    };
+
+                    await navigator.credentials.get({ publicKey: getOptions });
                 }
+
+                // Jika lolos try block, eksekusi perintah
+                if (actionType === 'edit') { 
+                    closeModal('pinAuthModal'); window.openProfileEdit(); 
+                } else if (actionType === 'reset') { 
+                    closeModal('resetPinModal'); document.getElementById('resetConfirmModal').classList.add('active'); 
+                }
+
             } catch (err) {
-                console.warn(err);
-                showToast("Gunakan PIN manual.", "error");
-                // Munculkan fallback
+                console.warn("Ditolak/Batal OS:", err);
+                showToast("Biometrik Gagal. Gunakan PIN.", "error");
                 document.getElementById(actionType === 'edit' ? 'pinAuthModal' : 'resetPinModal').classList.add('active');
             }
         };
