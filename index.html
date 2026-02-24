@@ -423,7 +423,7 @@
         import { getAuth, signInWithPopup, GoogleAuthProvider, signOut, onAuthStateChanged } from "https://www.gstatic.com/firebasejs/10.8.1/firebase-auth.js";
         import { getFirestore, enableIndexedDbPersistence, collection, onSnapshot, addDoc, updateDoc, doc, query, orderBy } from "https://www.gstatic.com/firebasejs/10.8.1/firebase-firestore.js";
 
-        // 1. KONFIGURASI FIREBASE (GANTI JIKA PERLU)
+        // 1. KONFIGURASI FIREBASE
         const firebaseConfig = {
             apiKey: "AIzaSyAwirxPa2d4J17OcZZpgjnAGI-bIFTyC-o",
             authDomain: "enterprise-finance-db.firebaseapp.com",
@@ -488,7 +488,6 @@
                 
                 initAppHeader();
                 
-                // Real-time listener. Offline persistence akan menangani ini otomatis saat internet mati.
                 const q = query(collection(dbFirestore, `users/${user.uid}/transactions`), orderBy("date", "asc"));
                 unsubscribeSnapshot = onSnapshot(q, (snapshot) => {
                     db = [];
@@ -513,13 +512,12 @@
         });
 
         document.getElementById('btnRealGoogleLogin').addEventListener('click', () => {
-            // Akan gagal jika dibuka lewat file:/// atau domain belum di-whitelist di Firebase Console
             signInWithPopup(auth, googleProvider).then((result) => {
                 showToast("Berhasil Login ke Cloud", "success");
                 closeModal('googleAuthModal');
             }).catch((error) => {
                 console.error(error);
-                showToast("Login Gagal: Pastikan akses via localhost/server", "error");
+                showToast("Login Gagal: " + error.message, "error");
             });
         });
 
@@ -555,7 +553,7 @@
         }
         initAppHeader();
 
-        // 6. EKSPOR FUNGSI KE WINDOW (Wajib karena Module scope)
+        // 6. EKSPOR FUNGSI KE WINDOW & EVENT LISTENERS
         window.switchWallet = (type) => {
             activeWallet = type; document.getElementById('walletSwitchContainer').setAttribute('data-active', type);
             renderShortcuts(); updateUI();
@@ -645,6 +643,29 @@
             localStorage.setItem('user_profile', JSON.stringify(profile));
             initAppHeader(); closeModal('profileEditModal'); showToast("Profil Disimpan");
         };
+
+                // Otomatisasi Garis Miring (/) Tanggal Lahir (Format: DD/MM/YYYY)
+        document.getElementById('editBirth').addEventListener('input', function(e) {
+            let v = e.target.value.replace(/\D/g, ''); 
+            if (v.length > 8) v = v.substring(0, 8);
+            
+            let hari = v.substring(0, 2);
+            let bulan = v.substring(2, 4);
+            let tahun = v.substring(4, 8);
+            
+            // Validasi mutlak agar tidak terbalik atau over-limit
+            if (hari.length === 2 && parseInt(hari) > 31) hari = '31';
+            if (hari.length === 2 && parseInt(hari) === 0) hari = '01';
+            
+            if (bulan.length === 2 && parseInt(bulan) > 12) bulan = '12';
+            if (bulan.length === 2 && parseInt(bulan) === 0) bulan = '01';
+            
+            let finalFormat = hari;
+            if (v.length >= 3) finalFormat += '/' + bulan;
+            if (v.length >= 5) finalFormat += '/' + tahun;
+            
+            e.target.value = finalFormat;
+        });
 
         window.toggleExpandStat = (clickedElement, containerId) => {
             const items = document.getElementById(containerId).children;
