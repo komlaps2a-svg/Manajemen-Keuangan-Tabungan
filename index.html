@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-    <title>Enterprise Finance Dashboard v17.1 (Premium & Fixed)</title>
+    <title>Enterprise Finance Dashboard v17.2 (Stable + Auto Compress)</title>
     <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800;900&display=swap" rel="stylesheet">
     <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
 
@@ -606,27 +606,16 @@
         };
         const categories = { masuk: ['Gaji', 'Top-Up', 'Bonus', 'Usaha'], keluar: ['Makan', 'Transport', 'Belanja', 'Tagihan'] };
 
-        // DYNAMIC COLOR MAP (ATURAN MUTLAK)
+        // DYNAMIC COLOR MAP (ATURAN MUTLAK SESUAI REQUEST)
         const getDynamicColor = (categoryStr, type) => {
-            // 1. Aturan Khusus Tabungan & Pinjaman
             if (categoryStr === 'Pindah Tabungan') return '#f59e0b'; // Kuning
             if (categoryStr === 'Dari Tabungan') return '#10b981'; // Hijau
             if (categoryStr === 'Dipinjam') return '#a855f7'; // Ungu
+            if (type === 'keluar') return '#ef4444'; // Merah Mutlak pengeluaran
             
-            // 2. Semua Pengeluaran Mutlak Merah (Kecuali yang sudah ditangkap di atas)
-            if (type === 'keluar') return '#ef4444'; 
-
-            // 3. Aturan Sisa untuk Pemasukan
-            const inColors = {
-                'Top-Up': '#3b82f6',
-                'Gaji': '#10b981',
-                'Bonus': '#06b6d4',
-                'Usaha': '#8b5cf6',
-                'Lunas Pinjaman': '#10b981'
-            };
+            const inColors = { 'Top-Up': '#3b82f6', 'Gaji': '#10b981', 'Bonus': '#06b6d4', 'Usaha': '#8b5cf6', 'Lunas Pinjaman': '#10b981' };
             if (inColors[categoryStr]) return inColors[categoryStr];
             
-            // 4. Fallback Pemasukan Manual
             let hash = 0; for(let i = 0; i < categoryStr.length; i++) hash = categoryStr.charCodeAt(i) + ((hash << 5) - hash);
             return `hsl(${Math.abs(hash) % 360}, 70%, 55%)`; 
         };
@@ -668,14 +657,51 @@
         window.toggleSection = (sec, icn) => { document.getElementById(sec).classList.toggle('hidden'); document.getElementById(icn).classList.toggle('rotated'); };
         window.exportToCSV = () => { if(db.length === 0) { showToast("Data kosong.", "error"); return; } let csv = "Tanggal,Dompet,Tipe,Kategori,Deskripsi,Peminjam,Nominal,Status\n"; [...db].sort((a,b) => new Date(a.date) - new Date(b.date)).forEach(row => { let r = [formatDetailDate(row.date), row.wallet, row.type, row.category, row.desc, row.borrower||'-', row.amount, row.status]; csv += r.map(v => `"${v}"`).join(",") + "\n"; }); const blob = new Blob([csv], { type: 'text/csv;charset=utf-8;' }); const link = document.createElement("a"); link.href = URL.createObjectURL(blob); link.download = `Laporan_Eksekutif_${new Date().toISOString().split('T')[0]}.csv`; document.body.appendChild(link); link.click(); document.body.removeChild(link); showToast("CSV Diunduh"); };
 
-        // 7. MANAJEMEN PROFIL
+        // 7. MANAJEMEN PROFIL (DENGAN FIX AUTO COMPRESS GAMBAR)
         window.openProfileView = () => { let inT = 0, outT = 0; db.forEach(t => { if(t.type === 'masuk') inT += t.amount; else outT += t.amount; }); document.getElementById('viewProfileImg').src = profile.photo; document.getElementById('viewProfileName').innerText = profile.name; document.getElementById('viewJoinDate').innerText = "Bergabung: " + formatDetailDate(profile.joinDate); document.getElementById('viewGender').innerText = profile.gender || '-'; document.getElementById('viewBirth').innerText = profile.birthDate || '-'; document.getElementById('viewTotalMasuk').innerText = formatRp(inT); document.getElementById('viewTotalKeluar').innerText = formatRp(outT); const stat = document.getElementById('viewGoogleStatus'); const btnText = document.getElementById('textGoogleLink'); const btn = document.getElementById('btnGoogleLink'); if(currentUser) { stat.innerHTML = `<span style="color:var(--hijau); font-weight:700;">${currentUser.email}</span>`; btnText.innerText = "Logout"; btn.style.borderColor = "var(--merah)"; btn.style.color = "var(--merah)"; } else { stat.innerText = "Tidak Terhubung"; stat.style.color = "var(--text-muted)"; btnText.innerText = "Hubungkan"; btn.style.borderColor = "#4285F4"; btn.style.color = "#4285F4"; } document.getElementById('profileViewModal').classList.add('active'); };
         window.openGoogleAuthModal = () => { if(currentUser) { window.openCustomConfirm("Logout Akun", "Logout dari Cloud?", () => { signOut(auth).then(() => { profile.googleLinked = false; profile.googleEmail = ''; localStorage.setItem('user_profile', JSON.stringify(profile)); showToast("Logout berhasil", "success"); closeModal('profileViewModal'); }); }); } else { document.getElementById('googleAuthModal').classList.add('active'); } };
         window.requestProfileEdit = () => { if(profile.pin && profile.pin !== '') { closeModal('profileViewModal'); document.getElementById('inputAuthPin').value = ''; document.getElementById('pinAuthModal').classList.add('active'); } else { window.openProfileEdit(); } };
         window.initResetSequence = () => { if (!currentUser) { showToast("Wajib tersambung Cloud.", "error"); return; } if (!profile.pin || profile.pin.trim() === '') { showToast("Buat PIN di Edit Profil.", "error"); return; } closeModal('profileViewModal'); document.getElementById('inputResetPin').value = ''; document.getElementById('resetPinModal').classList.add('active'); };
         window.verifyPinAuth = (actionType) => { const inputVal = document.getElementById(actionType === 'edit' ? 'inputAuthPin' : 'inputResetPin').value; if (inputVal === profile.pin) { if (actionType === 'edit') { closeModal('pinAuthModal'); window.openProfileEdit(); } else if (actionType === 'reset') { closeModal('resetPinModal'); document.getElementById('resetConfirmModal').classList.add('active'); } } else { showToast("PIN Salah!", "error"); } };
         window.openProfileEdit = () => { document.getElementById('editProfileImg').src = profile.photo; document.getElementById('editName').value = profile.name !== 'Guest' ? profile.name : ''; window.selectGender(profile.gender); document.getElementById('editBirth').value = profile.birthDate; document.getElementById('editPin').value = profile.pin; document.getElementById('profileEditModal').classList.add('active'); };
-        document.getElementById('profileUploader').addEventListener('change', function(e) { const f = e.target.files[0]; if(f) { const r = new FileReader(); r.onload = function(evt) { profile.photo = evt.target.result; document.getElementById('editProfileImg').src = profile.photo; }; r.readAsDataURL(f); } });
+        
+        // --- CORE FIX: AUTO COMPRESS GAMBAR SEBELUM DI-UPLOAD ---
+        document.getElementById('profileUploader').addEventListener('change', function(e) { 
+            const f = e.target.files[0]; 
+            if(!f) return; 
+            
+            showToast("Mengompresi foto...", "success"); // Notif indikator ke user
+            const reader = new FileReader(); 
+            
+            reader.onload = function(evt) { 
+                const img = new Image();
+                img.onload = function() {
+                    const canvas = document.createElement('canvas');
+                    const MAX_WIDTH = 400; // Maksimal lebar foto (Sangat ringan)
+                    const MAX_HEIGHT = 400;
+                    let width = img.width;
+                    let height = img.height;
+
+                    if (width > height) {
+                        if (width > MAX_WIDTH) { height *= MAX_WIDTH / width; width = MAX_WIDTH; }
+                    } else {
+                        if (height > MAX_HEIGHT) { width *= MAX_HEIGHT / height; height = MAX_HEIGHT; }
+                    }
+                    canvas.width = width; canvas.height = height;
+                    const ctx = canvas.getContext('2d');
+                    ctx.drawImage(img, 0, 0, width, height);
+                    
+                    // Ekstrak jadi base64 dengan format JPEG kualitas 60%
+                    const compressedDataUrl = canvas.toDataURL('image/jpeg', 0.6); 
+                    
+                    profile.photo = compressedDataUrl; 
+                    document.getElementById('editProfileImg').src = profile.photo; 
+                };
+                img.src = evt.target.result;
+            }; 
+            reader.readAsDataURL(f); 
+        });
+
         document.getElementById('editBirth').addEventListener('input', function(e) { let v = e.target.value.replace(/\D/g, ''); if (v.length > 8) v = v.substring(0, 8); let hari = v.substring(0, 2); let bulan = v.substring(2, 4); let tahun = v.substring(4, 8); if (hari.length === 2 && parseInt(hari) > 31) hari = '31'; if (hari.length === 2 && parseInt(hari) === 0) hari = '01'; if (bulan.length === 2 && parseInt(bulan) > 12) bulan = '12'; if (bulan.length === 2 && parseInt(bulan) === 0) bulan = '01'; let finalFormat = hari; if (v.length >= 3) finalFormat += '/' + bulan; if (v.length >= 5) finalFormat += '/' + tahun; e.target.value = finalFormat; });
         window.saveProfileData = async () => { profile.name = smartCapitalize(document.getElementById('editName').value.trim()) || 'Guest'; profile.gender = document.getElementById('editGender').value; profile.birthDate = document.getElementById('editBirth').value; profile.pin = document.getElementById('editPin').value; if (currentUser) { try { await setDoc(doc(dbFirestore, `users/${currentUser.uid}/profile/data`), profile); } catch (e) { showToast("Gagal sync.", "error"); return; } } localStorage.setItem('user_profile', JSON.stringify(profile)); initAppHeader(); closeModal('profileEditModal'); showToast("Profil Disimpan"); };
         window.executeFactoryReset = async () => { if (!currentUser) return; showToast("Memulai format...", "success"); db = []; localStorage.removeItem('finance_modern_db'); try { const snapshot = await getDocs(collection(dbFirestore, `users/${currentUser.uid}/transactions`)); const promises = []; snapshot.forEach((docItem) => promises.push(deleteDoc(doc(dbFirestore, `users/${currentUser.uid}/transactions/${docItem.id}`)))); await Promise.all(promises); showToast("Database musnah.", "success"); } catch (e) { showToast("Gagal reset.", "error"); } closeModal('resetConfirmModal'); updateUI(document.getElementById('searchTxInput').value); };
