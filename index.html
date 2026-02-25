@@ -389,11 +389,13 @@
             <h2 style="margin-top:0; border-bottom: 1px solid var(--border); padding-bottom: 10px;">Edit Profil</h2>
             
             <div style="text-align: center; margin-bottom: 20px; position: relative; width: 70px; height: 70px; margin: 0 auto 20px auto;">
-                <div class="profile-pic-container" style="width: 100%; height: 100%;">
-                    <img src="" id="editProfileImg" class="profile-pic">
-                    <div style="position:absolute; bottom:0; left:0; right:0; background:rgba(0,0,0,0.7); font-size:9px; padding:2px; color:white;">EDIT</div>
-                </div>
-                <input type="file" id="profileUploader" accept="image/*" style="position: absolute; top: 0; left: 0; width: 100%; height: 100%; opacity: 0; cursor: pointer; z-index: 10;">
+                <label for="profileUploader" style="cursor: pointer; display: block; width: 100%; height: 100%; position: relative; z-index: 10;">
+                    <div class="profile-pic-container" style="width: 100%; height: 100%; pointer-events: none;">
+                        <img src="" id="editProfileImg" class="profile-pic">
+                        <div style="position:absolute; bottom:0; left:0; right:0; background:rgba(0,0,0,0.7); font-size:9px; padding:2px; color:white;">EDIT</div>
+                    </div>
+                </label>
+                <input type="file" id="profileUploader" accept="image/*" style="display: none;">
             </div>
 
             <label class="input-label">Nama Lengkap</label>
@@ -423,7 +425,6 @@
             <button class="btn-modal btn-cancel" onclick="closeModal('profileEditModal')">Batal</button>
         </div>
     </div>
-
     <div class="modal-overlay" id="pinAuthModal">
         <div class="modal-card" style="max-width: 320px; text-align: center;">
             <h2 style="margin-top:0;">Otorisasi Profil</h2>
@@ -552,6 +553,7 @@
             <button class="btn-modal btn-cancel" onclick="closeModal('receiptModal')" style="border-color: #334155; color: #94a3b8; margin-top: 15px;">Tutup Bukti Transaksi</button>
         </div>
     </div>
+
     <script type="module">
         import { initializeApp } from "https://www.gstatic.com/firebasejs/10.8.1/firebase-app.js";
         import { getAuth, signInWithPopup, GoogleAuthProvider, signOut, onAuthStateChanged } from "https://www.gstatic.com/firebasejs/10.8.1/firebase-auth.js";
@@ -606,12 +608,12 @@
         };
         const categories = { masuk: ['Gaji', 'Top-Up', 'Bonus', 'Usaha'], keluar: ['Makan', 'Transport', 'Belanja', 'Tagihan'] };
 
-        // DYNAMIC COLOR MAP (ATURAN MUTLAK SESUAI REQUEST)
+        // DYNAMIC COLOR MAP
         const getDynamicColor = (categoryStr, type) => {
-            if (categoryStr === 'Pindah Tabungan') return '#f59e0b'; // Kuning
-            if (categoryStr === 'Dari Tabungan') return '#10b981'; // Hijau
-            if (categoryStr === 'Dipinjam') return '#a855f7'; // Ungu
-            if (type === 'keluar') return '#ef4444'; // Merah Mutlak pengeluaran
+            if (categoryStr === 'Pindah Tabungan') return '#f59e0b';
+            if (categoryStr === 'Dari Tabungan') return '#10b981';
+            if (categoryStr === 'Dipinjam') return '#a855f7';
+            if (type === 'keluar') return '#ef4444';
             
             const inColors = { 'Top-Up': '#3b82f6', 'Gaji': '#10b981', 'Bonus': '#06b6d4', 'Usaha': '#8b5cf6', 'Lunas Pinjaman': '#10b981' };
             if (inColors[categoryStr]) return inColors[categoryStr];
@@ -657,7 +659,7 @@
         window.toggleSection = (sec, icn) => { document.getElementById(sec).classList.toggle('hidden'); document.getElementById(icn).classList.toggle('rotated'); };
         window.exportToCSV = () => { if(db.length === 0) { showToast("Data kosong.", "error"); return; } let csv = "Tanggal,Dompet,Tipe,Kategori,Deskripsi,Peminjam,Nominal,Status\n"; [...db].sort((a,b) => new Date(a.date) - new Date(b.date)).forEach(row => { let r = [formatDetailDate(row.date), row.wallet, row.type, row.category, row.desc, row.borrower||'-', row.amount, row.status]; csv += r.map(v => `"${v}"`).join(",") + "\n"; }); const blob = new Blob([csv], { type: 'text/csv;charset=utf-8;' }); const link = document.createElement("a"); link.href = URL.createObjectURL(blob); link.download = `Laporan_Eksekutif_${new Date().toISOString().split('T')[0]}.csv`; document.body.appendChild(link); link.click(); document.body.removeChild(link); showToast("CSV Diunduh"); };
 
-        // 7. MANAJEMEN PROFIL (DENGAN FIX AUTO COMPRESS GAMBAR)
+        // 7. MANAJEMEN PROFIL
         window.openProfileView = () => { let inT = 0, outT = 0; db.forEach(t => { if(t.type === 'masuk') inT += t.amount; else outT += t.amount; }); document.getElementById('viewProfileImg').src = profile.photo; document.getElementById('viewProfileName').innerText = profile.name; document.getElementById('viewJoinDate').innerText = "Bergabung: " + formatDetailDate(profile.joinDate); document.getElementById('viewGender').innerText = profile.gender || '-'; document.getElementById('viewBirth').innerText = profile.birthDate || '-'; document.getElementById('viewTotalMasuk').innerText = formatRp(inT); document.getElementById('viewTotalKeluar').innerText = formatRp(outT); const stat = document.getElementById('viewGoogleStatus'); const btnText = document.getElementById('textGoogleLink'); const btn = document.getElementById('btnGoogleLink'); if(currentUser) { stat.innerHTML = `<span style="color:var(--hijau); font-weight:700;">${currentUser.email}</span>`; btnText.innerText = "Logout"; btn.style.borderColor = "var(--merah)"; btn.style.color = "var(--merah)"; } else { stat.innerText = "Tidak Terhubung"; stat.style.color = "var(--text-muted)"; btnText.innerText = "Hubungkan"; btn.style.borderColor = "#4285F4"; btn.style.color = "#4285F4"; } document.getElementById('profileViewModal').classList.add('active'); };
         window.openGoogleAuthModal = () => { if(currentUser) { window.openCustomConfirm("Logout Akun", "Logout dari Cloud?", () => { signOut(auth).then(() => { profile.googleLinked = false; profile.googleEmail = ''; localStorage.setItem('user_profile', JSON.stringify(profile)); showToast("Logout berhasil", "success"); closeModal('profileViewModal'); }); }); } else { document.getElementById('googleAuthModal').classList.add('active'); } };
         window.requestProfileEdit = () => { if(profile.pin && profile.pin !== '') { closeModal('profileViewModal'); document.getElementById('inputAuthPin').value = ''; document.getElementById('pinAuthModal').classList.add('active'); } else { window.openProfileEdit(); } };
@@ -665,19 +667,19 @@
         window.verifyPinAuth = (actionType) => { const inputVal = document.getElementById(actionType === 'edit' ? 'inputAuthPin' : 'inputResetPin').value; if (inputVal === profile.pin) { if (actionType === 'edit') { closeModal('pinAuthModal'); window.openProfileEdit(); } else if (actionType === 'reset') { closeModal('resetPinModal'); document.getElementById('resetConfirmModal').classList.add('active'); } } else { showToast("PIN Salah!", "error"); } };
         window.openProfileEdit = () => { document.getElementById('editProfileImg').src = profile.photo; document.getElementById('editName').value = profile.name !== 'Guest' ? profile.name : ''; window.selectGender(profile.gender); document.getElementById('editBirth').value = profile.birthDate; document.getElementById('editPin').value = profile.pin; document.getElementById('profileEditModal').classList.add('active'); };
         
-        // --- CORE FIX: AUTO COMPRESS GAMBAR SEBELUM DI-UPLOAD ---
+        // FUNGSI UPLOAD FOTO PROFIL (Sudah Fix)
         document.getElementById('profileUploader').addEventListener('change', function(e) { 
             const f = e.target.files[0]; 
             if(!f) return; 
             
-            showToast("Mengompresi foto...", "success"); // Notif indikator ke user
+            showToast("Mengompresi foto...", "success"); 
             const reader = new FileReader(); 
             
             reader.onload = function(evt) { 
                 const img = new Image();
                 img.onload = function() {
                     const canvas = document.createElement('canvas');
-                    const MAX_WIDTH = 400; // Maksimal lebar foto (Sangat ringan)
+                    const MAX_WIDTH = 400;
                     const MAX_HEIGHT = 400;
                     let width = img.width;
                     let height = img.height;
@@ -691,7 +693,6 @@
                     const ctx = canvas.getContext('2d');
                     ctx.drawImage(img, 0, 0, width, height);
                     
-                    // Ekstrak jadi base64 dengan format JPEG kualitas 60%
                     const compressedDataUrl = canvas.toDataURL('image/jpeg', 0.6); 
                     
                     profile.photo = compressedDataUrl; 
@@ -705,7 +706,6 @@
         document.getElementById('editBirth').addEventListener('input', function(e) { let v = e.target.value.replace(/\D/g, ''); if (v.length > 8) v = v.substring(0, 8); let hari = v.substring(0, 2); let bulan = v.substring(2, 4); let tahun = v.substring(4, 8); if (hari.length === 2 && parseInt(hari) > 31) hari = '31'; if (hari.length === 2 && parseInt(hari) === 0) hari = '01'; if (bulan.length === 2 && parseInt(bulan) > 12) bulan = '12'; if (bulan.length === 2 && parseInt(bulan) === 0) bulan = '01'; let finalFormat = hari; if (v.length >= 3) finalFormat += '/' + bulan; if (v.length >= 5) finalFormat += '/' + tahun; e.target.value = finalFormat; });
         window.saveProfileData = async () => { profile.name = smartCapitalize(document.getElementById('editName').value.trim()) || 'Guest'; profile.gender = document.getElementById('editGender').value; profile.birthDate = document.getElementById('editBirth').value; profile.pin = document.getElementById('editPin').value; if (currentUser) { try { await setDoc(doc(dbFirestore, `users/${currentUser.uid}/profile/data`), profile); } catch (e) { showToast("Gagal sync.", "error"); return; } } localStorage.setItem('user_profile', JSON.stringify(profile)); initAppHeader(); closeModal('profileEditModal'); showToast("Profil Disimpan"); };
         window.executeFactoryReset = async () => { if (!currentUser) return; showToast("Memulai format...", "success"); db = []; localStorage.removeItem('finance_modern_db'); try { const snapshot = await getDocs(collection(dbFirestore, `users/${currentUser.uid}/transactions`)); const promises = []; snapshot.forEach((docItem) => promises.push(deleteDoc(doc(dbFirestore, `users/${currentUser.uid}/transactions/${docItem.id}`)))); await Promise.all(promises); showToast("Database musnah.", "success"); } catch (e) { showToast("Gagal reset.", "error"); } closeModal('resetConfirmModal'); updateUI(document.getElementById('searchTxInput').value); };
-
         // 8. INPUT TRANSAKSI LOGIC
         let isLoanMode = false;
         window.quickInput = (type, cat, desc, isLoan = false) => { isLoanMode = isLoan; document.getElementById('tx-type').value = type; document.getElementById('modal-title').innerText = isLoan ? 'Catat Uang Dipinjam' : (type === 'masuk' ? 'Input Pemasukan' : 'Input Pengeluaran'); document.getElementById('tx-desc').value = ''; document.getElementById('tx-category-manual').value = ''; document.getElementById('tx-borrower').value = ''; if(cat === 'MANUAL') { document.getElementById('catSelectWrapper').style.display = 'none'; document.getElementById('tx-category-manual').style.display = 'block'; document.getElementById('label-kategori').innerText = 'Ketik Nama Kategori'; } else { document.getElementById('catSelectWrapper').style.display = 'block'; document.getElementById('tx-category-manual').style.display = 'none'; document.getElementById('label-kategori').innerText = 'Kategori'; const box = document.getElementById('catOptionsBox'); const arr = type==='masuk' ? categories.masuk : categories.keluar; box.innerHTML = arr.map(c => `<div class="custom-option" onclick="selectCategory('${c}')">${c}</div>`).join(''); if(!arr.includes(cat)) box.innerHTML += `<div class="custom-option" onclick="selectCategory('${cat}')">${cat}</div>`; window.selectCategory(cat); } const bw = document.getElementById('borrowerWrapper'); const lbDesc = document.getElementById('label-desc'); if(isLoanMode) { bw.style.display = 'block'; lbDesc.innerText = 'Deskripsi (Opsional)'; document.getElementById('tx-desc').value = 'Uang Dipinjamkan'; } else { bw.style.display = 'none'; lbDesc.innerText = 'Deskripsi'; document.getElementById('tx-desc').value = desc; } document.getElementById('tx-amount').value = ''; rawAmount = 0; document.getElementById('txModal').classList.add('active'); setTimeout(() => { if(isLoanMode) document.getElementById('tx-borrower').focus(); else if(cat==='MANUAL') document.getElementById('tx-category-manual').focus(); else document.getElementById('tx-amount').focus(); }, 300); };
