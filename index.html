@@ -8,7 +8,7 @@
     <meta http-equiv="Pragma" content="no-cache">
     <meta http-equiv="Expires" content="0">
     
-    <title>Enterprise Finance Dashboard v18.5 (Anti-Freeze Edition)</title>
+    <title>Enterprise Finance Dashboard v18.6 (Anti-Stuck & Real-Sync)</title>
     <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800;900&display=swap" rel="stylesheet">
     
     <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
@@ -298,6 +298,7 @@
         <h2 class="section-title">Analitik Visual</h2>
         <svg id="chartToggleIcon" class="toggle-icon rotated" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="m6 9 6 6 6-6"/></svg>
     </div>
+    
     <div class="collapsible-content" id="chartsSection">
         <div class="expand-container" id="chartContainer">
             <div class="expand-item" onclick="expandChart(this, 'chartContainer')">
@@ -843,16 +844,15 @@
         }
 
         // --- ANTI-FREEZE AUTH STATE CHANGE ---
+        // BUG UTAMA DISELESAIKAN DI SINI: Mencegah penghapusan sesi kalau tiba-tiba offline
         sbClient.auth.onAuthStateChange(async (event, session) => {
             
-            // JIKA EVENT LOGOUT TAPI STATUS HP OFFLINE = ABAIKAN. INI KUNCI ANTI-STUCK NYA!
             if (event === 'SIGNED_OUT' && !navigator.onLine) {
-                console.warn("Mencegah pemusnahan data karena sistem sedang OFFLINE.");
+                console.warn("Sistem Offline: Mencegah pemusnahan data lokal.");
                 return; 
             }
 
             if (event === 'SIGNED_OUT') {
-                // Logout normal secara sadar saat online
                 currentUser = null;
                 localStorage.removeItem('user_profile_secure');
                 localStorage.removeItem('finance_modern_db_secure');
@@ -872,7 +872,6 @@
             }
 
             if (session && session.user) {
-                // Berhasil nyambung sesi online
                 currentUser = session.user; 
                 const netStatus = document.getElementById('networkStatus');
                 if(netStatus) {
@@ -901,10 +900,7 @@
                 closeModal('googleAuthModal');
                 
             } else if (!session && profile.googleLinked && !navigator.onLine) {
-                // SISTEM PENYELAMAT OFFLINE: 
-                // Session kosong tapi profile pernah terhubung Google, dan HP lagi OFFLINE.
-                // Tetap pertahankan status data tanpa melempar ke mode Guest.
-                currentUser = null; // Terputus dari server
+                currentUser = null; 
                 const netStatus = document.getElementById('networkStatus');
                 if(netStatus) {
                     netStatus.innerText = "Offline Mode (Lokal)"; 
@@ -915,7 +911,6 @@
                 try { updateUI(); } catch(e){}
 
             } else {
-                // User murni Guest
                 currentUser = null; 
                 const netStatus = document.getElementById('networkStatus');
                 if(netStatus) {
@@ -942,7 +937,6 @@
             const container = document.getElementById('walletSwitchContainer');
             if(container) container.setAttribute('data-active', type); 
             
-            // Render ulang dengan try-catch biar kalau 1 gagal, gak bikin app mati
             try { renderShortcuts(); } catch(e) { console.warn("Gagal render shortcut", e); }
             try { updateUI(document.getElementById('searchTxInput') ? document.getElementById('searchTxInput').value : ''); } catch(e) { console.warn("Gagal update UI", e); }
         }
@@ -968,6 +962,7 @@
         function toggleSection(sec, icn) { document.getElementById(sec).classList.toggle('hidden'); document.getElementById(icn).classList.toggle('rotated'); }
         
         function openCSVModal() { if(db.length === 0) { showToast("Data kosong.", "error"); return; } document.getElementById('csvExportModal').classList.add('active'); }
+        
         function executeCSVExport() { 
             closeModal('csvExportModal'); let csv = "Tanggal,Dompet,Tipe,Kategori,Deskripsi,Peminjam,Nominal,Status\n"; 
             const today = new Date(); today.setHours(0,0,0,0);
@@ -1008,7 +1003,9 @@
         }
         
         function openGoogleAuthModal() { document.getElementById('googleAuthModal').classList.add('active'); }
+        
         function requestProfileEdit() { if(profile.pin && profile.pin !== '') { closeModal('profileViewModal'); document.getElementById('inputAuthPin').value = ''; document.getElementById('pinAuthModal').classList.add('active'); } else { openProfileEdit(); } }
+        
         function initResetSequence() { 
             if (!currentUser) { showToast("Wajib tersambung Cloud.", "error"); return; } 
             if (!navigator.onLine) { showToast("Gagal. Matikan mode offline untuk mereset.", "error"); return; }
@@ -1062,7 +1059,6 @@
             closeModal('resetConfirmModal'); 
             try { updateUI(document.getElementById('searchTxInput') ? document.getElementById('searchTxInput').value : ''); } catch(e){}
         }
-
         // 8. INPUT TRANSAKSI LOGIC
         let isLoanMode = false;
         function quickInput(type, cat, desc, isLoan = false) { 
@@ -1149,6 +1145,7 @@
                 } 
             }); 
         }
+
         async function checkAndAutoLunasHutang() { 
             let inT = 0, outT = 0; 
             db.filter(t => t.wallet === 'harian').forEach(t => { if(t.type === 'masuk') inT += t.amount; else outT += t.amount; }); 
@@ -1252,11 +1249,12 @@
             } 
             document.getElementById('tx-is-saving').value = 'false'; 
         });
-
         // 9. RENDER ENGINE, SEARCH & AI FORECAST
         function updateHealthEngine(filteredDb) { 
             let tIn = 0, tOut = 0; filteredDb.forEach(t => { if(t.type === 'masuk') tIn += t.amount; else tOut += t.amount; }); 
-            let balance = tIn - tOut; const badge = document.getElementById('healthBadge'); const text = document.getElementById('healthText'); badge.className = 'health-badge'; 
+            let balance = tIn - tOut; const badge = document.getElementById('healthBadge'); const text = document.getElementById('healthText'); 
+            if(!badge || !text) return;
+            badge.className = 'health-badge'; 
             if (tIn === 0 && tOut === 0) { badge.classList.add('health-netral'); text.innerText = 'Netral'; } else if (balance < 0) { badge.classList.add('health-defisit'); text.innerText = 'Defisit'; } else if (balance >= 0 && balance <= 50000) { badge.classList.add('health-kritis'); text.innerText = 'Kritis'; } else { if (tOut > (tIn * 0.8)) { badge.classList.add('health-waspada'); text.innerText = 'Waspada'; } else { badge.classList.add('health-sehat'); text.innerText = 'Sehat'; } } 
             try { generateAIForecast(filteredDb); } catch(e){}
         }
@@ -1264,11 +1262,12 @@
         function generateAIForecast(data) { 
             const box = document.getElementById('aiInsightBox'); 
             const textEl = document.getElementById('aiInsightText'); 
+            if(!box || !textEl) return;
             aiMessages = []; 
             
             if (data.length === 0) { 
                 aiMessages.push("Belum ada data transaksi. Ayo mulai catat aktivitas keuanganmu!");
-                if(!currentUser) aiMessages.push("Info: Hubungkan dengan Google agar datamu tersimpan aman di Cloud.");
+                if(!profile.googleLinked) aiMessages.push("Info: Hubungkan dengan Google agar datamu tersimpan aman di Cloud.");
                 startAICarousel(textEl); return; 
             } 
             
@@ -1282,7 +1281,7 @@
             let biggestExpenseMsg = "Belum ada data pengeluaran bulan ini untuk dianalisis.";
             if (keluarData.length > 0) { let catTotals = {}; keluarData.forEach(t => { catTotals[t.category] = (catTotals[t.category] || 0) + t.amount; }); let biggestCat = Object.keys(catTotals).reduce((a, b) => catTotals[a] > catTotals[b] ? a : b); biggestExpenseMsg = `Pengeluaran terbesarmu bulan ini tersedot di ${properTitleCase(biggestCat)} (${formatRp(catTotals[biggestCat])}).`; }
             
-            if(!currentUser) aiMessages.push("Info: Wajib login (Google) jika ingin aplikasi berjalan maksimal 100%!");
+            if(!profile.googleLinked) aiMessages.push("Info: Wajib login (Google) jika ingin aplikasi berjalan maksimal 100%!");
             aiMessages.push("Info: Saldo harian wajib diisi, karena akan mutasi otomatis dari dompet ke tabungan."); 
             
             let statusMsg = "", projectionMsg = "";
@@ -1359,6 +1358,7 @@
         
         function renderShortcuts() { 
             const c = document.getElementById('quickActionsContainer'); 
+            if(!c) return;
             if(activeWallet === 'harian') { 
                 c.className = 'quick-actions-wrap grid-mode grid-split-4'; 
                 c.innerHTML = `<button class="btn-quick glow-merah" onclick="quickInput('keluar', 'Makan', 'Beli Makan')">${svgs.makan} <span>Beli Makan</span></button> <button class="btn-quick glow-kuning" onclick="quickInput('keluar', 'Transport', 'Isi Bensin')">${svgs.transport} <span>Transport</span></button> <button class="btn-quick glow-biru" onclick="quickInput('masuk', 'Top-Up', 'Isi Saldo')">${svgs.uang} <span>Isi Saldo</span></button> <button class="btn-quick glow-ungu" onclick="quickInput('keluar', 'Dipinjam', 'Pinjamkan Uang', true)">${svgs.pinjam} <span>Dipinjam</span></button> <button class="btn-quick glow-kuning" onclick="quickInput('keluar', 'MANUAL', '')">${svgs.plus} <span>Lainnya (-)</span></button> <button class="btn-quick glow-hijau" onclick="quickInput('masuk', 'MANUAL', '')">${svgs.plus} <span>Lainnya (+)</span></button>`; 
@@ -1369,17 +1369,18 @@
         }
         
         // --- LOGIKA UTAMA: EXPAND ANGKA KETIKA DIKLIK ---
-        function toggleExpandStat(el, containerId) { 
+        // Membaca attribute data-short dan data-full yang sudah kita set sebelumnya
+        function toggleExpandStat(el, containerId, targetId) { 
             const items = document.getElementById(containerId).children;
             if (el.classList.contains('expanded')) { 
-                // Jika sedang terbuka, kembalikan ke format pendek (data-short)
+                // Tutup kotak yang aktif, kembalikan teks ke format pendek
                 for(let i of items) {
                     i.className = 'expand-item'; 
                     const valEl = i.querySelector('.card-value');
                     if (valEl) valEl.innerText = valEl.getAttribute('data-short');
                 }
             } else { 
-                // Jika ditutup, buka kotak yang diklik dengan format full (data-full), sisanya tutup (data-short)
+                // Buka kotak yang diklik, ganti teks ke format full, tutup yang lain
                 for(let i of items) {
                     const valEl = i.querySelector('.card-value');
                     if (i === el) {
@@ -1413,9 +1414,11 @@
             let tI = 0, tO = 0; 
             db.filter(t => t.wallet === 'harian').forEach(t => { if(t.type === 'masuk') tI += t.amount; else tO += t.amount; });
             const ban = document.getElementById('debtBannerContainer');
-            if(activeWallet === 'harian' && (tI - tO) < 0) {
-                ban.innerHTML = `<div class="hutang-banner"><div><span style="font-size:11px; font-weight:900; color:var(--merah);">Status Defisit</span><br><span style="font-size:16px; font-weight:900;">Minus: ${formatRp(Math.abs(tI - tO))}</span></div><button class="btn-quick glow-biru" style="padding:10px 15px; font-size:12px;" onclick="quickInput('masuk','Top-Up','Tutup Hutang')"><span>Top-Up</span></button></div>`;
-            } else { ban.innerHTML = ''; }
+            if(ban) {
+                if(activeWallet === 'harian' && (tI - tO) < 0) {
+                    ban.innerHTML = `<div class="hutang-banner"><div><span style="font-size:11px; font-weight:900; color:var(--merah);">Status Defisit</span><br><span style="font-size:16px; font-weight:900;">Minus: ${formatRp(Math.abs(tI - tO))}</span></div><button class="btn-quick glow-biru" style="padding:10px 15px; font-size:12px;" onclick="quickInput('masuk','Top-Up','Tutup Hutang')"><span>Top-Up</span></button></div>`;
+                } else { ban.innerHTML = ''; }
+            }
 
             const today = new Date(); today.setHours(0,0,0,0);
             const fd = db.filter(tx => { 
@@ -1431,29 +1434,33 @@
             updateHealthEngine(fd);
             let m = 0, k = 0; fd.forEach(t => { if(t.type === 'masuk') m += t.amount; else k += t.amount; });
             
-            // Siapkan DOM untuk Saldo Utama
             const saldoEl = document.getElementById('disp-saldo');
             const masukEl = document.getElementById('disp-masuk');
             const keluarEl = document.getElementById('disp-keluar');
 
-            // Set Atribut Custom
-            saldoEl.setAttribute('data-short', formatRpPendek(m - k));
-            saldoEl.setAttribute('data-full', formatRp(m - k));
-            masukEl.setAttribute('data-short', formatRpPendek(m));
-            masukEl.setAttribute('data-full', formatRp(m));
-            keluarEl.setAttribute('data-short', formatRpPendek(k));
-            keluarEl.setAttribute('data-full', formatRp(k));
+            if(saldoEl && masukEl && keluarEl) {
+                // Set data-short & data-full
+                saldoEl.setAttribute('data-short', formatRpPendek(m - k));
+                saldoEl.setAttribute('data-full', formatRp(m - k));
+                masukEl.setAttribute('data-short', formatRpPendek(m));
+                masukEl.setAttribute('data-full', formatRp(m));
+                keluarEl.setAttribute('data-short', formatRpPendek(k));
+                keluarEl.setAttribute('data-full', formatRp(k));
 
-            // Logika cek status expand: kalau lagi terbuka, pasang yang panjang. Kalau nutup, pakai pendek.
-            saldoEl.innerText = saldoEl.closest('.expand-item').classList.contains('expanded') ? saldoEl.getAttribute('data-full') : saldoEl.getAttribute('data-short');
-            masukEl.innerText = masukEl.closest('.expand-item').classList.contains('expanded') ? masukEl.getAttribute('data-full') : masukEl.getAttribute('data-short');
-            keluarEl.innerText = keluarEl.closest('.expand-item').classList.contains('expanded') ? keluarEl.getAttribute('data-full') : keluarEl.getAttribute('data-short');
+                // Deteksi state saat ini: jika kotak melebar, tampilkan data-full. Jika tidak, data-short.
+                saldoEl.innerText = saldoEl.closest('.expand-item').classList.contains('expanded') ? saldoEl.getAttribute('data-full') : saldoEl.getAttribute('data-short');
+                masukEl.innerText = masukEl.closest('.expand-item').classList.contains('expanded') ? masukEl.getAttribute('data-full') : masukEl.getAttribute('data-short');
+                keluarEl.innerText = keluarEl.closest('.expand-item').classList.contains('expanded') ? keluarEl.getAttribute('data-full') : keluarEl.getAttribute('data-short');
+            }
             
-            renderTable(fd); renderCharts(fd);
+            renderTable(fd); 
+            renderCharts(fd);
         }
 
         function renderTable(data) {
-            const t = document.getElementById('table-body'); t.innerHTML = '';
+            const t = document.getElementById('table-body'); 
+            if(!t) return;
+            t.innerHTML = '';
             if(data.length === 0) { t.innerHTML = `<tr><td colspan="4" style="text-align:center; padding: 30px; color:var(--text-muted);">Tidak ada transaksi pada rentang waktu ini.</td></tr>`; return; }
             
             [...data].sort((a,b) => new Date(b.date) - new Date(a.date)).forEach(tx => {
@@ -1484,24 +1491,30 @@
             const cA = {}; data.forEach(t => { const k = `${t.category}`; if(cA[k]) { cA[k].a += t.amount; } else { cA[k] = { a: t.amount, color: getDynamicColor(t.category, t.type) }; } }); 
             const pL = Object.keys(cA);
             
-            if(pieChart) pieChart.destroy(); 
-            pieChart = new Chart(document.getElementById('pieChart'), { type: 'doughnut', data: { labels: pL, datasets: [{ data: pL.map(l => cA[l].a), backgroundColor: pL.map(l => cA[l].color), borderWidth: 4, borderColor: '#050814' }] }, options: { responsive: true, maintainAspectRatio: false, plugins: { legend: { display: false }, tooltip: { callbacks: { label: function(c) { return ' ' + formatRp(c.raw); } } } } } });
+            try {
+                if(pieChart) pieChart.destroy(); 
+                pieChart = new Chart(document.getElementById('pieChart'), { type: 'doughnut', data: { labels: pL, datasets: [{ data: pL.map(l => cA[l].a), backgroundColor: pL.map(l => cA[l].color), borderWidth: 4, borderColor: '#050814' }] }, options: { responsive: true, maintainAspectRatio: false, plugins: { legend: { display: false }, tooltip: { callbacks: { label: function(c) { return ' ' + formatRp(c.raw); } } } } } });
 
-            const rT = [...data].sort((a,b) => new Date(a.date) - new Date(b.date)).slice(-15);
-            if(barChart) barChart.destroy(); 
-            barChart = new Chart(document.getElementById('barChart'), { type: 'bar', data: { labels: rT.map(t => t.desc.substring(0,8)), datasets: [{ data: rT.map(t => t.type === 'masuk' ? t.amount : -t.amount), backgroundColor: rT.map(t => getDynamicColor(t.category, t.type)), borderRadius: 4 }] }, options: { responsive: true, maintainAspectRatio: false, plugins: { legend: { display: false }, tooltip: { callbacks: { label: function(c) { return ' ' + formatRp(Math.abs(c.raw)); } } } }, scales: { x: { display: false }, y: { grid: { color: '#1e293b' } } } } });
+                const rT = [...data].sort((a,b) => new Date(a.date) - new Date(b.date)).slice(-15);
+                if(barChart) barChart.destroy(); 
+                barChart = new Chart(document.getElementById('barChart'), { type: 'bar', data: { labels: rT.map(t => t.desc.substring(0,8)), datasets: [{ data: rT.map(t => t.type === 'masuk' ? t.amount : -t.amount), backgroundColor: rT.map(t => getDynamicColor(t.category, t.type)), borderRadius: 4 }] }, options: { responsive: true, maintainAspectRatio: false, plugins: { legend: { display: false }, tooltip: { callbacks: { label: function(c) { return ' ' + formatRp(Math.abs(c.raw)); } } } }, scales: { x: { display: false }, y: { grid: { color: '#1e293b' } } } } });
 
-            let cI = 0, cO = 0, hI = [], hO = []; 
-            [...data].sort((a,b)=> new Date(a.date)-new Date(b.date)).forEach(t => { if(t.type === 'masuk') cI += t.amount; else cO += t.amount; hI.push(cI); hO.push(cO); });
-            
-            if(lineChart) lineChart.destroy(); 
-            lineChart = new Chart(document.getElementById('lineChart'), { type: 'line', data: { labels: hI.map((_,i)=> `T${i+1}`), datasets: [{ label: 'Pemasukan Total', data: hI, borderColor: '#3b82f6', backgroundColor: 'rgba(59, 130, 246, 0.1)', fill: true, pointRadius: 3, tension: 0.3 }, { label: 'Pengeluaran Total', data: hO, borderColor: '#ef4444', backgroundColor: 'rgba(239, 68, 68, 0.1)', fill: true, pointRadius: 3, tension: 0.3 }] }, options: { responsive: true, maintainAspectRatio: false, plugins: { legend: { display: false }, tooltip: { callbacks: { label: function(c) { return ' ' + formatRp(c.raw); } } } }, scales: { x: { display: false }, y: { grid: { color: '#1e293b' } } } } });
+                let cI = 0, cO = 0, hI = [], hO = []; 
+                [...data].sort((a,b)=> new Date(a.date)-new Date(b.date)).forEach(t => { if(t.type === 'masuk') cI += t.amount; else cO += t.amount; hI.push(cI); hO.push(cO); });
+                
+                if(lineChart) lineChart.destroy(); 
+                lineChart = new Chart(document.getElementById('lineChart'), { type: 'line', data: { labels: hI.map((_,i)=> `T${i+1}`), datasets: [{ label: 'Pemasukan Total', data: hI, borderColor: '#3b82f6', backgroundColor: 'rgba(59, 130, 246, 0.1)', fill: true, pointRadius: 3, tension: 0.3 }, { label: 'Pengeluaran Total', data: hO, borderColor: '#ef4444', backgroundColor: 'rgba(239, 68, 68, 0.1)', fill: true, pointRadius: 3, tension: 0.3 }] }, options: { responsive: true, maintainAspectRatio: false, plugins: { legend: { display: false }, tooltip: { callbacks: { label: function(c) { return ' ' + formatRp(c.raw); } } } }, scales: { x: { display: false }, y: { grid: { color: '#1e293b' } } } } });
+            } catch(e) { console.warn("Error rendering charts", e); }
         }
 
-        // INITIALIZATION JALANKAN SAAT APLIKASI MULAI
-        initAppHeader();
-        renderShortcuts(); 
-        try { updateUI(); } catch(e){}
+        // INITIALIZATION: Mencegah error macet di awal load
+        try {
+            initAppHeader();
+            renderShortcuts(); 
+            updateUI();
+        } catch(e) {
+            console.error("Gagal saat inisialisasi awal", e);
+        }
 
     </script>
 </body>
