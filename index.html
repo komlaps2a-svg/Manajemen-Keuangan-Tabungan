@@ -8,7 +8,7 @@
     <meta http-equiv="Pragma" content="no-cache">
     <meta http-equiv="Expires" content="0">
     
-    <title>Enterprise Finance Dashboard v18.0 (Core Engine Fix)</title>
+    <title>Enterprise Finance Dashboard v18.1 (Stable Core Fix)</title>
     <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800;900&display=swap" rel="stylesheet">
     
     <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
@@ -121,7 +121,6 @@
         .expand-item.expanded { flex: 1 1 100%; align-items: center; justify-content: center; text-align: center; }
         .expand-item.expanded .card-label { font-size: 14px; margin-bottom: 10px; }
         
-        /* Anti Overlap Text */
         .card-label { font-size: 10px; font-weight: 800; color: var(--text-muted); text-transform: uppercase; margin-bottom: 5px; white-space: nowrap; transition: all 0.3s;}
         .card-value { font-size: 17px; font-weight: 900; margin: 0; letter-spacing: -0.5px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; width: 100%; transition: all 0.3s;}
         .expand-item.expanded .card-value { font-size: 28px; white-space: normal; word-break: break-word; }
@@ -165,7 +164,6 @@
 
         #btnGoogleLink svg { position: static; margin-right: 5px; }
 
-        /* CSS UNTUK TOMBOL SOSIAL MEDIA */
         .btn-sosmed { display: flex; align-items: center; gap: 8px; flex: 1; justify-content: center; padding: 12px; border-radius: 10px; font-size: 12px; font-weight: 800; text-decoration: none; transition: all 0.3s; cursor: pointer; }
         .btn-sosmed:active { transform: scale(0.95); }
         .btn-sosmed.ig { background: rgba(225, 48, 108, 0.1); color: #E1306C; border: 1px solid rgba(225, 48, 108, 0.3); }
@@ -349,7 +347,6 @@
             </table>
         </div>
     </div>
-
     <div class="modal-overlay" id="profileViewModal">
         <div class="modal-card">
             <div style="text-align: center; margin-bottom: 25px; position: relative;">
@@ -643,10 +640,12 @@
                     if(netStatus) { netStatus.innerText = "Offline Mode (Lokal)"; netStatus.className = "status-sync sync-offline"; }
                     db = loadLocalDB();
                     if(typeof updateUI === 'function') updateUI(document.getElementById('searchTxInput') ? document.getElementById('searchTxInput').value : '');
-                }
-                // Cache buster jika background > 3 menit dan sedang online
-                if (lastBackgroundTime > 0 && (Date.now() - lastBackgroundTime > 180000) && navigator.onLine) {
-                    window.location.replace(window.location.pathname + '?v=' + Date.now());
+                } else {
+                    // Pengecekan Update Otomatis saat user kembali ke app (jika online)
+                    // Jika di background lebih dari 1 menit, otomatis tarik data terbaru dari GitHub
+                    if (lastBackgroundTime > 0 && (Date.now() - lastBackgroundTime > 60000)) {
+                        window.location.replace(window.location.pathname + '?v=' + Date.now());
+                    }
                 }
             }
         });
@@ -782,7 +781,6 @@
         function showToast(msg, type = 'success') { const box = document.getElementById('toastBox'); if(!box) return; const t = document.createElement('div'); t.className = `toast ${type}`; t.innerText = msg; box.appendChild(t); setTimeout(() => t.classList.add('show'), 10); setTimeout(() => { t.classList.remove('show'); setTimeout(() => t.remove(), 400); }, 3000); }
         function closeModal(id) { const el = document.getElementById(id); if(el) el.classList.remove('active'); document.querySelectorAll('.custom-options.open').forEach(e => e.classList.remove('open')); }
         
-        // UTILITY PROPER TITLE CASE
         function properTitleCase(str) { 
             if(!str) return ""; 
             return str.toLowerCase().replace(/\b\w/g, char => char.toUpperCase()); 
@@ -801,7 +799,6 @@
         async function verifyTxPin() { const val = document.getElementById('inputTxPin').value; if (val.length < 4) { showToast("Sandi min 4 digit", "error"); return; } const hashedVal = await hashPIN(val); if (!profile.txPin) { profile.txPin = hashedVal; saveProfileLocal(); await saveProfileToSupabase(); showToast("Sandi Dibuat!", "success"); } else { if (hashedVal !== profile.txPin) { showToast("Sandi Salah!", "error"); return; } } closeModal('txPinModal'); if (pendingTxCallback) { pendingTxCallback(); pendingTxCallback = null; } }
         function openResetTxPinModal() { closeModal('txPinModal'); if (!profile.pin) { showToast("Buat PIN Profil utama dulu.", "error"); return; } const input = document.getElementById('inputResetTxAuthPin'); input.value = ''; document.getElementById('resetTxPinAuthModal').classList.add('active'); setTimeout(() => input.focus(), 300); }
         async function executeResetTxPin() { const pin = document.getElementById('inputResetTxAuthPin').value; const hashedPin = await hashPIN(pin); if (hashedPin === profile.pin) { profile.txPin = ''; saveProfileLocal(); await saveProfileToSupabase(); showToast("Sandi Direset!"); closeModal('resetTxPinAuthModal'); promptTxPin(pendingTxCallback); } else { showToast("PIN Salah!", "error"); } }
-
         // 5. AUTH, REALTIME SYNC & GUEST MIGRATION ENGINE
         function initAppHeader() { document.getElementById('headName').innerText = profile.name; document.getElementById('headGender').innerText = profile.gender; document.getElementById('headProfileImg').src = profile.photo; }
         
@@ -817,7 +814,6 @@
                 const pendingData = localStorage.getItem('pending_guest_data');
                 if (pendingData) {
                     const guestDb = JSON.parse(pendingData);
-                    // Jika akun Google kosong (baru), suntikkan data guest
                     if (data.length === 0 && guestDb.length > 0) {
                         showToast("Memigrasi data Guest ke Cloud...", "success");
                         const payload = guestDb.map(t => { 
@@ -826,14 +822,10 @@
                             return newData; 
                         });
                         await sbClient.from('transactions').insert(payload);
-                        // Bersihkan setelah migrasi berhasil
                         localStorage.removeItem('pending_guest_data');
-                        
-                        // Tarik ulang data yang sudah tergabung
                         const { data: newData } = await sbClient.from('transactions').select('*').eq('user_id', currentUser.id).order('date', { ascending: true });
                         db = newData || [];
                     } else {
-                        // Jika akun lama (udah ada data), JANGAN timpa. Buang saja data guest-nya.
                         localStorage.removeItem('pending_guest_data');
                         db = data;
                     }
@@ -857,14 +849,15 @@
         }
 
         sbClient.auth.onAuthStateChange(async (event, session) => {
-            // LOGOUT BRUTAL ANTI-STUCK: Hancurkan DB dan bersihkan session tanpa ampun
+            // FIX LOGOUT BRUTAL: Tidak menggunakan localStorage.clear() lagi
             if (event === 'SIGNED_OUT') {
                 currentUser = null;
-                localStorage.clear(); 
-                sessionStorage.clear();
+                // Hanya hapus database lokal terkait user lama, biarkan sesi Supabase tertutup natural
+                localStorage.removeItem('user_profile_secure');
+                localStorage.removeItem('finance_modern_db_secure');
                 
-                // Gunakan cache buster agar browser tidak mengingat token nyangkut
-                window.location.replace(window.location.pathname + '?clear=' + Date.now());
+                // Refresh bersih agar sistem bisa menerima login akun baru tanpa stuck
+                window.location.replace(window.location.pathname + '?v=' + Date.now());
                 return;
             }
 
@@ -896,13 +889,13 @@
         });
 
         document.getElementById('btnRealGoogleLogin').addEventListener('click', async () => { 
-            // KARANTINA GUEST: Simpan data lokal sesaat sebelum dialihkan ke Google
             if(!currentUser && db.length > 0) {
                 localStorage.setItem('pending_guest_data', JSON.stringify(db));
             }
             const { error } = await sbClient.auth.signInWithOAuth({ provider: 'google', options: { redirectTo: window.location.origin + window.location.pathname } }); 
             if (error) showToast("Gagal Login", "error"); else closeModal('googleAuthModal'); 
         });
+
         // 6. INTERAKSI UI DOM
         function switchWallet(type) { activeWallet = type; document.getElementById('walletSwitchContainer').setAttribute('data-active', type); renderShortcuts(); updateUI(document.getElementById('searchTxInput') ? document.getElementById('searchTxInput').value : ''); }
         function toggleCustomSelect(id) { const box = document.getElementById(id); const isOpen = box.classList.contains('open'); document.querySelectorAll('.custom-options.open').forEach(el => el.classList.remove('open')); if(!isOpen) box.classList.add('open'); }
@@ -952,9 +945,7 @@
 
         document.getElementById('editBirth').addEventListener('input', function(e) { let v = e.target.value.replace(/\D/g, ''); if (v.length > 8) v = v.substring(0, 8); let hari = v.substring(0, 2); let bulan = v.substring(2, 4); let tahun = v.substring(4, 8); if (hari.length === 2 && parseInt(hari) > 31) hari = '31'; if (hari.length === 2 && parseInt(hari) === 0) hari = '01'; if (bulan.length === 2 && parseInt(bulan) > 12) bulan = '12'; if (bulan.length === 2 && parseInt(bulan) === 0) bulan = '01'; let finalFormat = hari; if (v.length >= 3) finalFormat += '/' + bulan; if (v.length >= 5) finalFormat += '/' + tahun; e.target.value = finalFormat; });
         
-        // FIX POPUP PROFIL: Tutup seketika tanpa menunggu sinkronisasi internet!
         async function saveProfileData() { 
-            // FIX: Gunakan properTitleCase untuk memaksa huruf kecil dulu lalu dikapitalisasi awal kata
             profile.name = properTitleCase(document.getElementById('editName').value.trim()) || 'Guest'; 
             profile.gender = document.getElementById('editGender').value; 
             profile.birthDate = document.getElementById('editBirth').value; 
@@ -963,10 +954,10 @@
             
             saveProfileLocal(); 
             initAppHeader(); 
-            closeModal('profileEditModal'); // Eksekusi tutup modal instan
+            closeModal('profileEditModal');
             showToast("Profil Disimpan"); 
             
-            saveProfileToSupabase(); // Sinkronisasi berjalan aman di background
+            saveProfileToSupabase(); 
         }
         
         async function executeFactoryReset() { 
@@ -982,7 +973,6 @@
             } catch (e) { showToast("Gagal reset di server.", "error"); } 
             closeModal('resetConfirmModal'); updateUI(document.getElementById('searchTxInput') ? document.getElementById('searchTxInput').value : ''); 
         }
-        
         // 8. INPUT TRANSAKSI LOGIC
         let isLoanMode = false;
         function quickInput(type, cat, desc, isLoan = false) { 
@@ -1053,7 +1043,6 @@
             const tabunganRegex = /tabung|tbgn|tbg|nabung/i;
             const isTabunganRelated = tabunganRegex.test(cF) || tabunganRegex.test(dF);
             
-            // FIX TITLE CASE untuk Kategori dan Deskripsi
             cF = properTitleCase(cF); 
             dF = properTitleCase(dF); 
             
@@ -1081,7 +1070,6 @@
                 if(activeWallet === 'harian') { 
                     if(type === 'keluar') { if(saldoHarian - rawAmount < 0) { stat = 'hutang'; showToast("Dicatat Hutang", "error"); } } 
                     if (isLoanMode) { 
-                        // FIX TITLE CASE untuk Peminjam
                         brw = properTitleCase(document.getElementById('tx-borrower').value.trim()); 
                         if(!brw) { showToast("Isi peminjam", "error"); document.getElementById('tx-is-saving').value = 'false'; return; } 
                         stat = 'dipinjam'; 
@@ -1124,6 +1112,7 @@
             } 
             document.getElementById('tx-is-saving').value = 'false'; 
         });
+
         // 9. RENDER ENGINE & SEARCH
         function updateHealthEngine(filteredDb) { 
             let tIn = 0, tOut = 0; filteredDb.forEach(t => { if(t.type === 'masuk') tIn += t.amount; else tOut += t.amount; }); 
@@ -1137,7 +1126,6 @@
             const textEl = document.getElementById('aiInsightText'); 
             aiMessages = []; 
             
-            // FIX: Kotak AI selalu merespons, tidak menghilang saat data kosong
             if (data.length === 0) { 
                 aiMessages.push("Belum ada data transaksi. Ayo mulai catat aktivitas keuanganmu!");
                 if(!currentUser) {
@@ -1175,7 +1163,6 @@
             } 
             aiMessages.push(statusMsg); aiMessages.push(projectionMsg); aiMessages.push(biggestExpenseMsg);
             
-            // Filter array agar unik dan tidak kosong, lalu jalankan animasi
             aiMessages = [...new Set(aiMessages)].filter(m => m !== "");
             startAICarousel(textEl); 
         }
@@ -1260,11 +1247,9 @@
         }
 
         function renderCharts(data) {
-            // FIX: Perlindungan dari crash saat Offline Mode
             if (!document.getElementById('pieChart')) return; 
             Chart.defaults.color = '#64748b'; Chart.defaults.font.family = 'Inter';
             
-            // Render kosong tanpa error jika tidak ada data
             if(data.length === 0) {
                 if(pieChart) pieChart.destroy();
                 if(barChart) barChart.destroy();
