@@ -8,7 +8,7 @@
     <meta http-equiv="Pragma" content="no-cache">
     <meta http-equiv="Expires" content="0">
     
-    <title>Enterprise Finance Dashboard v17.3 (Auto-Sync Fix)</title>
+    <title>Enterprise Finance Dashboard v17.4 (Offline & Auth Fix)</title>
     <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800;900&display=swap" rel="stylesheet">
     
     <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
@@ -99,10 +99,11 @@
         .custom-option { padding: 14px 16px; font-size: 14px; font-weight: 600; cursor: pointer; border-bottom: 1px solid var(--border); transition: background 0.2s; }
         .custom-option:last-child { border-bottom: none; }
         .custom-option:hover { background: var(--biru); color: white; }
+        
         /* FILTER WAKTU & INSIGHT AI ROW */
         .filter-insight-row { display: flex; gap: 10px; width: 100%; margin-bottom: 25px; align-items: stretch; height: 90px; }
-        .time-filter-wrapper { width: 140px; margin-bottom: 0; flex-shrink: 0; position: relative; height: 100%; }
-        .time-filter-wrapper .custom-select-trigger { padding: 0 15px; font-size: 12px; font-weight: 800; background: var(--hitam-card); height: 100%; text-align: left; }
+        .time-filter-wrapper { width: 115px; margin-bottom: 0; flex-shrink: 0; position: relative; height: 100%; }
+        .time-filter-wrapper .custom-select-trigger { padding: 0 10px; font-size: 11px; font-weight: 800; background: var(--hitam-card); height: 100%; text-align: left; }
         
         /* KOTAK INSIGHT AI */
         .insight-box { background: rgba(59, 130, 246, 0.08); border-left: 3px solid var(--biru); padding: 12px 15px; border-radius: 8px; font-weight: 600; color: var(--putih); display: flex; align-items: center; gap: 12px; flex: 1; overflow: hidden; height: 100%; box-sizing: border-box; }
@@ -273,9 +274,9 @@
             </div>
         </div>
         
-        <div id="aiInsightBox" class="insight-box" style="display: none;">
+        <div id="aiInsightBox" class="insight-box" style="display: flex;">
             <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"/><path d="M12 16v-4"/><path d="M12 8h.01"/></svg>
-            <span id="aiInsightText" class="fade-transition">Menganalisis data...</span>
+            <span id="aiInsightText" class="fade-transition">Menganalisis data keuanganmu...</span>
         </div>
     </div>
 
@@ -680,18 +681,15 @@
             catch (e) { return []; }
         }
 
-        // FIX UTAMA 1: Hash PIN Anti-Crash di Hosting
         async function hashPIN(pin) {
             if (!pin) return '';
             try {
-                // Cek apakah browser mendukung fitur Secure Crypto (HTTPS)
                 if (window.crypto && window.crypto.subtle && window.isSecureContext) {
                     const msgBuffer = new TextEncoder().encode(pin);
                     const hashBuffer = await crypto.subtle.digest('SHA-256', msgBuffer);
                     const hashArray = Array.from(new Uint8Array(hashBuffer));
                     return hashArray.map(b => b.toString(16).padStart(2, '0')).join('');
                 } else {
-                    // Jika diblokir (misal dibuka via file lokal atau tanpa HTTPS), gunakan CryptoJS Fallback
                     return CryptoJS.SHA256(pin).toString(CryptoJS.enc.Hex);
                 }
             } catch (error) {
@@ -757,13 +755,28 @@
         function openResetTxPinModal() { closeModal('txPinModal'); if (!profile.pin) { showToast("Buat PIN Profil utama dulu.", "error"); return; } const input = document.getElementById('inputResetTxAuthPin'); input.value = ''; document.getElementById('resetTxPinAuthModal').classList.add('active'); setTimeout(() => input.focus(), 300); }
         async function executeResetTxPin() { const pin = document.getElementById('inputResetTxAuthPin').value; const hashedPin = await hashPIN(pin); if (hashedPin === profile.pin) { profile.txPin = ''; saveProfileLocal(); await saveProfileToSupabase(); showToast("Sandi Direset!"); closeModal('resetTxPinAuthModal'); promptTxPin(pendingTxCallback); } else { showToast("PIN Salah!", "error"); } }
 
-        // 5. AUTH & REALTIME SYNC ENGINE
+        // 5. AUTH & REALTIME SYNC ENGINE (FIX OFFLINE CRASH & GANTI AKUN)
         function initAppHeader() { document.getElementById('headName').innerText = profile.name; document.getElementById('headGender').innerText = profile.gender; document.getElementById('headProfileImg').src = profile.photo; }
         
         async function fetchUserTransactions() {
             if (!currentUser) return;
-            const { data, error } = await sbClient.from('transactions').select('*').eq('user_id', currentUser.id).order('date', { ascending: true });
-            if (!error && data) { db = data; saveLocalDB(db); if(typeof updateUI === 'function') updateUI(document.getElementById('searchTxInput').value); }
+            try {
+                // FIX: Cegah nge-fetch ke server jika sedang tidak ada koneksi
+                if (!navigator.onLine) {
+                    throw new Error("Koneksi terputus. Beralih ke data lokal.");
+                }
+                const { data, error } = await sbClient.from('transactions').select('*').eq('user_id', currentUser.id).order('date', { ascending: true });
+                if (error) throw error;
+                if (data) { 
+                    db = data; 
+                    saveLocalDB(db); 
+                    if(typeof updateUI === 'function') updateUI(document.getElementById('searchTxInput').value); 
+                }
+            } catch (error) {
+                console.warn("Fetch gagal (Offline/Error), menggunakan data lokal.", error);
+                db = loadLocalDB(); // Fallback ke data lokal yang tersimpan terakhir
+                if(typeof updateUI === 'function') updateUI(document.getElementById('searchTxInput').value);
+            }
         }
 
         function setupRealtime() {
@@ -776,28 +789,49 @@
             document.getElementById('networkStatus').innerText = "Online Mode (Cloud)"; document.getElementById('networkStatus').className = "status-sync sync-online"; 
             if (currentUser) { 
                 let lDb = loadLocalDB(); let unsynced = lDb.filter(t => !t.user_id || typeof t.id === 'number'); 
-                if(unsynced.length > 0) { showToast("Koneksi pulih. Menyelaraskan...", "success"); for (let t of unsynced) { let txData = { ...t, user_id: currentUser.id }; if(txData.id && typeof txData.id === 'number') delete txData.id; await sbClient.from('transactions').insert([txData]); } fetchUserTransactions(); } 
-                else if (db.length === 0) fetchUserTransactions(); // Coba tarik ulang kalau kosong
+                if(unsynced.length > 0) { 
+                    showToast("Koneksi pulih. Menyelaraskan...", "success"); 
+                    for (let t of unsynced) { 
+                        let txData = { ...t, user_id: currentUser.id }; 
+                        if(txData.id && typeof txData.id === 'number') delete txData.id; 
+                        await sbClient.from('transactions').insert([txData]); 
+                    } 
+                    fetchUserTransactions(); 
+                } 
+                else if (db.length === 0) fetchUserTransactions(); 
             } 
         });
-        window.addEventListener('offline', () => { document.getElementById('networkStatus').innerText = "Offline Mode (Lokal)"; document.getElementById('networkStatus').className = "status-sync sync-offline"; });
+        
+        window.addEventListener('offline', () => { 
+            document.getElementById('networkStatus').innerText = "Offline Mode (Lokal)"; 
+            document.getElementById('networkStatus').className = "status-sync sync-offline"; 
+            // FIX: Pastikan UI langsung update pakai data lokal begitu internet putus
+            db = loadLocalDB();
+            if(typeof updateUI === 'function') updateUI(document.getElementById('searchTxInput').value);
+        });
 
         sbClient.auth.onAuthStateChange(async (event, session) => {
-            // FIX UTAMA 2: Hancurkan semua data secara paksa saat Sign Out!
             if (event === 'SIGNED_OUT') {
                 currentUser = null;
-                localStorage.clear(); // Bersihkan memori HP dari akun lama
+                // FIX: Bersihkan memori dan biarkan proses pembersihan selesai sebelum di reload
+                localStorage.clear(); 
                 db = [];
                 profile = defaultProfile;
-                // Bersihkan URL dari sisa token dan paksa refresh tanpa cache
-                window.location.replace(window.location.origin + window.location.pathname);
+                setTimeout(() => {
+                    window.location.replace(window.location.origin + window.location.pathname);
+                }, 500); // Jeda setengah detik mencegah race condition
                 return;
             }
 
             if (session && session.user) {
                 currentUser = session.user; document.getElementById('networkStatus').innerText = navigator.onLine ? "Online Mode (Cloud)" : "Offline Mode (Lokal)"; document.getElementById('networkStatus').className = navigator.onLine ? "status-sync sync-online" : "status-sync sync-offline"; 
-                const { data: profileData } = await sbClient.from('profiles').select('data').eq('id', currentUser.id).single();
-                if (profileData && profileData.data) { profile = { ...profile, ...profileData.data }; } else { if(profile.name === 'Guest') profile.name = currentUser.user_metadata?.full_name || 'Member'; profile.photo = currentUser.user_metadata?.avatar_url || profile.photo; await saveProfileToSupabase(); }
+                
+                try {
+                    const { data: profileData } = await sbClient.from('profiles').select('data').eq('id', currentUser.id).single();
+                    if (profileData && profileData.data) { profile = { ...profile, ...profileData.data }; } 
+                    else { if(profile.name === 'Guest') profile.name = currentUser.user_metadata?.full_name || 'Member'; profile.photo = currentUser.user_metadata?.avatar_url || profile.photo; await saveProfileToSupabase(); }
+                } catch(e) { console.warn("Gagal narik profil dari server, pakai lokal", e); }
+                
                 profile.googleLinked = true; profile.googleEmail = currentUser.email; saveProfileLocal(); initAppHeader(); fetchUserTransactions(); setupRealtime();
             } else {
                 currentUser = null; document.getElementById('networkStatus').innerText = "Offline Mode (Lokal)"; document.getElementById('networkStatus').className = "status-sync sync-offline"; 
@@ -835,7 +869,6 @@
                 stat.innerHTML = `<span style="color:var(--hijau); font-weight:700;">${currentUser.email}</span>`; btnText.innerText = "Logout"; btn.style.borderColor = "var(--merah)"; btn.style.color = "var(--merah)"; 
                 btn.onclick = async () => { 
                     openCustomConfirm("Logout Akun", "Logout dari Cloud?", async () => { 
-                        // Proses total wipeout dipicu oleh event onAuthStateChange di Bagian 4
                         await sbClient.auth.signOut(); 
                         closeModal('profileViewModal'); 
                     }); 
@@ -857,7 +890,20 @@
 
         document.getElementById('editBirth').addEventListener('input', function(e) { let v = e.target.value.replace(/\D/g, ''); if (v.length > 8) v = v.substring(0, 8); let hari = v.substring(0, 2); let bulan = v.substring(2, 4); let tahun = v.substring(4, 8); if (hari.length === 2 && parseInt(hari) > 31) hari = '31'; if (hari.length === 2 && parseInt(hari) === 0) hari = '01'; if (bulan.length === 2 && parseInt(bulan) > 12) bulan = '12'; if (bulan.length === 2 && parseInt(bulan) === 0) bulan = '01'; let finalFormat = hari; if (v.length >= 3) finalFormat += '/' + bulan; if (v.length >= 5) finalFormat += '/' + tahun; e.target.value = finalFormat; });
         async function saveProfileData() { profile.name = smartCapitalize(document.getElementById('editName').value.trim()) || 'Guest'; profile.gender = document.getElementById('editGender').value; profile.birthDate = document.getElementById('editBirth').value; const rawPin = document.getElementById('editPin').value; if (rawPin && rawPin.trim() !== '') { profile.pin = await hashPIN(rawPin); } saveProfileLocal(); await saveProfileToSupabase(); initAppHeader(); closeModal('profileEditModal'); showToast("Profil Disimpan"); }
-        async function executeFactoryReset() { if (!currentUser) return; showToast("Memulai format...", "success"); db = []; localStorage.removeItem('finance_modern_db_secure'); try { const { error } = await sbClient.from('transactions').delete().eq('user_id', currentUser.id); if (error) throw error; showToast("Database musnah.", "success"); } catch (e) { showToast("Gagal reset.", "error"); } closeModal('resetConfirmModal'); updateUI(document.getElementById('searchTxInput').value); }
+        
+        async function executeFactoryReset() { 
+            if (!currentUser) return; 
+            showToast("Memulai format...", "success"); 
+            db = []; localStorage.removeItem('finance_modern_db_secure'); 
+            try { 
+                if (navigator.onLine) {
+                    const { error } = await sbClient.from('transactions').delete().eq('user_id', currentUser.id); 
+                    if (error) throw error; 
+                }
+                showToast("Database musnah.", "success"); 
+            } catch (e) { showToast("Gagal reset di server.", "error"); } 
+            closeModal('resetConfirmModal'); updateUI(document.getElementById('searchTxInput').value); 
+        }
         
         // 8. INPUT TRANSAKSI LOGIC
         let isLoanMode = false;
@@ -879,13 +925,21 @@
                     const tx = db[idx]; const targetWallet = tx.wallet; const walletName = targetWallet === 'harian' ? 'Dompet Harian' : 'Tabungan'; 
                     openCustomConfirm("Pelunasan Pinjaman", `Uang senilai <b>${formatRp(tx.amount)}</b> dari <b>${tx.borrower}</b> sudah lunas ke <b>${walletName}</b>?`, async () => { 
                         const deskripsiLunas = `Lunas: ${tx.desc} (${tx.borrower})`; const lData = { wallet: targetWallet, type: 'masuk', category: 'Lunas Pinjaman', desc: deskripsiLunas, borrower: tx.borrower, amount: tx.amount, date: new Date().toISOString() }; 
-                        if(currentUser) { 
+                        
+                        // FIX OFFLINE LOGIC: Kalau user login TAPI offline, fallback ke lokal
+                        if(currentUser && navigator.onLine) { 
                             lData.user_id = currentUser.id; 
                             await sbClient.from('transactions').update({ status: 'lunas_pinjaman' }).eq('id', tx.id); 
                             await sbClient.from('transactions').insert([lData]); 
-                            await fetchUserTransactions(); // FIX 3: Aggressive UI Refresh
+                            await fetchUserTransactions(); 
                         } 
-                        else { db[idx].status = 'lunas_pinjaman'; lData.id = Date.now(); db.push(lData); saveLocalDB(db); updateUI(document.getElementById('searchTxInput').value); } 
+                        else { 
+                            db[idx].status = 'lunas_pinjaman'; 
+                            lData.id = Date.now(); 
+                            db.push(lData); 
+                            saveLocalDB(db); 
+                            updateUI(document.getElementById('searchTxInput').value); 
+                        } 
                         showToast(`Pinjaman Lunas`, "success"); 
                     }); 
                 } 
@@ -895,8 +949,17 @@
         async function checkAndAutoLunasHutang() { 
             let inT = 0, outT = 0; db.filter(t => t.wallet === 'harian').forEach(t => { if(t.type === 'masuk') inT += t.amount; else outT += t.amount; }); 
             if((inT - outT) >= 0) { 
-                let clear = false; for (let t of db) { if(t.wallet === 'harian' && t.status === 'hutang') { if(currentUser) await sbClient.from('transactions').update({ status: 'lunas_hutang' }).eq('id', t.id); else t.status = 'lunas_hutang'; clear = true; } } 
-                if(clear && !currentUser) saveLocalDB(db); if(clear) showToast("Hutang otomatis lunas!", "success"); if(clear && currentUser) fetchUserTransactions();
+                let clear = false; 
+                for (let t of db) { 
+                    if(t.wallet === 'harian' && t.status === 'hutang') { 
+                        if(currentUser && navigator.onLine) await sbClient.from('transactions').update({ status: 'lunas_hutang' }).eq('id', t.id); 
+                        else t.status = 'lunas_hutang'; 
+                        clear = true; 
+                    } 
+                } 
+                if(clear && (!currentUser || !navigator.onLine)) saveLocalDB(db); 
+                if(clear) showToast("Hutang otomatis lunas!", "success"); 
+                if(clear && currentUser && navigator.onLine) fetchUserTransactions();
             } 
         }
 
@@ -951,26 +1014,27 @@
                 } 
             } 
             
-            if(currentUser) { 
+            // FIX OFFLINE LOGIC: Pastikan insert Supabase hanya jalan saat Online
+            if(currentUser && navigator.onLine) { 
                 try { 
                     const payload = txToSave.map(t => { let data = { ...t, user_id: currentUser.id }; delete data.id; return data; });
                     const { error } = await sbClient.from('transactions').insert(payload); 
                     if(error) throw error;
                     
-                    // FIX 3: AGGRESSIVE UI REFRESH. Langsung ambil data terbaru dan render ulang.
                     await fetchUserTransactions(); 
                     if(txToSave.some(t => t.wallet === 'harian' && t.type === 'masuk')) checkAndAutoLunasHutang(); 
                     closeModal('txModal'); showToast("Proses server berhasil"); 
                 } catch(e) { showToast("Error menyimpan", "error"); console.error("Supabase Insert Error:", e); } 
             } else { 
+                // Mode Lokal / Offline
                 txToSave.forEach(t => { t.id = Date.now() + Math.floor(Math.random() * 1000); db.push(t); }); 
                 saveLocalDB(db); closeModal('txModal'); 
                 if(txToSave.some(t => t.wallet === 'harian' && t.type === 'masuk')) checkAndAutoLunasHutang(); 
-                updateUI(document.getElementById('searchTxInput').value); showToast(txToSave.length > 1 ? "Tracker Transparan Berhasil" : "Disimpan Lokal"); 
+                updateUI(document.getElementById('searchTxInput').value); 
+                showToast(txToSave.length > 1 ? "Tracker Transparan (Offline)" : "Disimpan Lokal"); 
             } 
             document.getElementById('tx-is-saving').value = 'false'; 
         });
-
         // 9. RENDER ENGINE & SEARCH
         function updateHealthEngine(filteredDb) { 
             let tIn = 0, tOut = 0; filteredDb.forEach(t => { if(t.type === 'masuk') tIn += t.amount; else tOut += t.amount; }); 
@@ -980,17 +1044,30 @@
         }
 
         function generateAIForecast(data) { 
-            const box = document.getElementById('aiInsightBox'); const textEl = document.getElementById('aiInsightText'); 
-            if (data.length === 0) { box.style.display = 'none'; return; } 
+            const box = document.getElementById('aiInsightBox'); 
+            const textEl = document.getElementById('aiInsightText'); 
+            aiMessages = []; 
+            
+            // FIX: Kotak AI tidak disembunyikan meski data kosong
+            if (data.length === 0) { 
+                aiMessages.push("Belum ada data transaksi. Ayo mulai catat aktivitas keuanganmu!");
+                aiMessages.push("Info: Wajib login Google agar data tersimpan aman di Cloud.");
+                startAICarousel(textEl);
+                return; 
+            } 
+            
             const today = new Date(); const currentMonthData = data.filter(t => { const d = new Date(t.date); return d.getMonth() === today.getMonth() && d.getFullYear() === today.getFullYear(); }); 
             const masukData = currentMonthData.filter(t => t.type === 'masuk'); const keluarData = currentMonthData.filter(t => t.type === 'keluar'); 
             let mIn = masukData.reduce((sum, t) => sum + t.amount, 0); let mOut = keluarData.reduce((sum, t) => sum + t.amount, 0); 
             const daysInMonth = new Date(today.getFullYear(), today.getMonth() + 1, 0).getDate(); 
+            
             function calculateProjection(txArray, totalAmount) { if (txArray.length === 0) return 0; if (txArray.length === 1) return totalAmount; const sorted = [...txArray].sort((a,b) => new Date(a.date) - new Date(b.date)); const firstDate = new Date(sorted[0].date).getDate(); const lastDate = new Date(sorted[sorted.length-1].date).getDate(); let spanDays = lastDate - firstDate; if (spanDays === 0) spanDays = 1; const rate = spanDays / (txArray.length - 1); const futureTxCount = Math.floor((daysInMonth - lastDate) / rate); return totalAmount + (futureTxCount * (totalAmount / txArray.length)); } 
+            
             let biggestExpenseMsg = "Belum ada data pengeluaran bulan ini untuk dianalisis.";
             if (keluarData.length > 0) { let catTotals = {}; keluarData.forEach(t => { catTotals[t.category] = (catTotals[t.category] || 0) + t.amount; }); let biggestCat = Object.keys(catTotals).reduce((a, b) => catTotals[a] > catTotals[b] ? a : b); biggestExpenseMsg = `Pengeluaran terbesarmu bulan ini tersedot di ${biggestCat} (${formatRp(catTotals[biggestCat])}).`; }
             const loginMsg = "Info: Wajib login (Hubungkan Google) jika ingin aplikasi berjalan maksimal dan data 100% aman!";
-            aiMessages = []; aiMessages.push("Info: Saldo harian perlu di isi sebelum setor tabungan karena mutasi otomatis dari dompet ke tabungan."); 
+            aiMessages.push("Info: Saldo harian perlu di isi sebelum setor tabungan karena mutasi otomatis dari dompet ke tabungan."); 
+            
             let statusMsg = "", projectionMsg = "";
             if (activeWallet === 'harian') { 
                 if (mOut > mIn && mIn > 0) { statusMsg = "⚠️ Peringatan! Total pengeluaran harianmu telah melampaui uang masuk bulan ini."; projectionMsg = "Saran AI: Segera kurangi pengeluaran agar keuangan tidak defisit di akhir bulan!"; box.style.borderLeftColor = 'var(--merah)'; box.querySelector('svg').style.color = 'var(--merah)'; } 
@@ -1003,10 +1080,28 @@
                 else if (mIn === 0 && mOut === 0) { statusMsg = "Brankas tabunganmu belum ada aktivitas bulan ini."; projectionMsg = "Tips: Yuk, mulai sisihkan uangmu hari ini untuk disetor ke tabungan!"; box.style.borderLeftColor = 'var(--biru)'; box.querySelector('svg').style.color = 'var(--biru)'; } 
             } 
             aiMessages.push(statusMsg); aiMessages.push(projectionMsg); aiMessages.push(biggestExpenseMsg); aiMessages.push(loginMsg); 
-            if (aiMessages.length > 0) { box.style.display = 'flex'; startAICarousel(textEl); } else { box.style.display = 'none'; } 
+            
+            // Pastikan array unik dan valid lalu jalankan slider
+            aiMessages = [...new Set(aiMessages)].filter(m => m !== "");
+            startAICarousel(textEl); 
         }
         
-        function startAICarousel(textEl) { if (aiCarouselInterval) clearInterval(aiCarouselInterval); aiCurrentMsgIdx = 0; textEl.innerText = aiMessages[0]; textEl.classList.remove('fade-out'); if (aiMessages.length > 1) { aiCarouselInterval = setInterval(() => { textEl.classList.add('fade-out'); setTimeout(() => { aiCurrentMsgIdx = (aiCurrentMsgIdx + 1) % aiMessages.length; textEl.innerText = aiMessages[aiCurrentMsgIdx]; textEl.classList.remove('fade-out'); }, 400); }, 10000); } }
+        function startAICarousel(textEl) { 
+            if (aiCarouselInterval) clearInterval(aiCarouselInterval); 
+            aiCurrentMsgIdx = 0; 
+            textEl.innerText = aiMessages[0]; 
+            textEl.classList.remove('fade-out'); 
+            if (aiMessages.length > 1) { 
+                aiCarouselInterval = setInterval(() => { 
+                    textEl.classList.add('fade-out'); 
+                    setTimeout(() => { 
+                        aiCurrentMsgIdx = (aiCurrentMsgIdx + 1) % aiMessages.length; 
+                        textEl.innerText = aiMessages[aiCurrentMsgIdx]; 
+                        textEl.classList.remove('fade-out'); 
+                    }, 400); 
+                }, 10000); 
+            } 
+        }
 
         function openReceipt(txId) { 
             const strTxId = String(txId); const tx = db.find(t => String(t.id) === strTxId || String(t.date) === strTxId); if(!tx) return; 
@@ -1070,10 +1165,18 @@
             });
         }
 
-        // FIX 4: Mencegah grafik error saat Offline Mode (Data Kosong)
         function renderCharts(data) {
-            if (!document.getElementById('pieChart')) return; // Mencegah crash jika canvas belum termuat
+            // FIX: Cek ekstensi chart, cegah crash di mode offline jika elemen belum siap
+            if (!document.getElementById('pieChart')) return; 
             Chart.defaults.color = '#64748b'; Chart.defaults.font.family = 'Inter';
+            
+            // Render kosong jika tidak ada data
+            if(data.length === 0) {
+                if(pieChart) pieChart.destroy();
+                if(barChart) barChart.destroy();
+                if(lineChart) lineChart.destroy();
+                return;
+            }
             
             const cA = {}; data.forEach(t => { const k = `${t.category}`; if(cA[k]) { cA[k].a += t.amount; } else { cA[k] = { a: t.amount, color: getDynamicColor(t.category, t.type) }; } }); const pL = Object.keys(cA);
             if(pieChart) pieChart.destroy(); pieChart = new Chart(document.getElementById('pieChart'), { type: 'doughnut', data: { labels: pL, datasets: [{ data: pL.map(l => cA[l].a), backgroundColor: pL.map(l => cA[l].color), borderWidth: 4, borderColor: '#050814' }] }, options: { responsive: true, maintainAspectRatio: false, plugins: { legend: { display: false }, tooltip: { callbacks: { label: function(c) { return ' ' + formatRp(c.raw); } } } } } });
