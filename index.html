@@ -8,7 +8,7 @@
     <meta http-equiv="Pragma" content="no-cache">
     <meta http-equiv="Expires" content="0">
     
-    <title>Enterprise Finance Dashboard v18.1 (Stable Core Fix)</title>
+    <title>Enterprise Finance Dashboard v18.2 (Stable Auth & UI Fix)</title>
     <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800;900&display=swap" rel="stylesheet">
     
     <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
@@ -121,8 +121,19 @@
         .expand-item.expanded { flex: 1 1 100%; align-items: center; justify-content: center; text-align: center; }
         .expand-item.expanded .card-label { font-size: 14px; margin-bottom: 10px; }
         
+        /* FIX ANGKA KEPOTONG "..." DI HP - Auto Scale & Word Wrap */
         .card-label { font-size: 10px; font-weight: 800; color: var(--text-muted); text-transform: uppercase; margin-bottom: 5px; white-space: nowrap; transition: all 0.3s;}
-        .card-value { font-size: 17px; font-weight: 900; margin: 0; letter-spacing: -0.5px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; width: 100%; transition: all 0.3s;}
+        .card-value { 
+            font-size: clamp(13px, 4vw, 17px); /* Angka mengecil otomatis di layar sempit */
+            font-weight: 900; 
+            margin: 0; 
+            letter-spacing: -0.5px; 
+            white-space: normal; /* Mengizinkan angka turun ke bawah (wrap) jika kepanjangan */
+            word-break: break-all; /* Mencegah overflow */
+            line-height: 1.2;
+            width: 100%; 
+            transition: all 0.3s;
+        }
         .expand-item.expanded .card-value { font-size: 28px; white-space: normal; word-break: break-word; }
         
         .expand-item.collapsed { flex: 0 0 0%; border: none; padding: 0; margin: 0; opacity: 0; pointer-events: none; }
@@ -612,21 +623,23 @@
         </div>
     </div>
     <script>
-        // --- 0. AUTO-REFRESH & AGGRESSIVE OFFLINE DETECTOR ---
+        // --- 0. AUTO-REFRESH & PENANGANAN UI STUCK ---
         let lastBackgroundTime = 0;
         
-        // Transisi Offline ke Online: Langsung Refresh Aplikasi agar tidak ada bug nyangkut!
+        // Memastikan semua modal paksa ditutup saat aplikasi baru dimuat agar tidak ada invisible overlay yang bikin stuck
+        window.addEventListener('DOMContentLoaded', () => {
+            document.querySelectorAll('.modal-overlay.active').forEach(el => el.classList.remove('active'));
+        });
+
+        // Transisi Offline ke Online
         window.addEventListener('online', () => { 
             showToast("Koneksi Pulih! Menyegarkan sistem...", "success");
-            setTimeout(() => {
-                window.location.replace(window.location.pathname + '?v=' + Date.now());
-            }, 1000);
+            setTimeout(() => { window.location.replace(window.location.pathname + '?v=' + Date.now()); }, 1000);
         });
         
         window.addEventListener('offline', () => { 
             const netStatus = document.getElementById('networkStatus');
             if(netStatus) { netStatus.innerText = "Offline Mode (Lokal)"; netStatus.className = "status-sync sync-offline"; }
-            // Langsung eksekusi lokal tanpa nunggu Supabase error
             db = loadLocalDB();
             if(typeof updateUI === 'function') updateUI(document.getElementById('searchTxInput') ? document.getElementById('searchTxInput').value : '');
         });
@@ -641,8 +654,6 @@
                     db = loadLocalDB();
                     if(typeof updateUI === 'function') updateUI(document.getElementById('searchTxInput') ? document.getElementById('searchTxInput').value : '');
                 } else {
-                    // Pengecekan Update Otomatis saat user kembali ke app (jika online)
-                    // Jika di background lebih dari 1 menit, otomatis tarik data terbaru dari GitHub
                     if (lastBackgroundTime > 0 && (Date.now() - lastBackgroundTime > 60000)) {
                         window.location.replace(window.location.pathname + '?v=' + Date.now());
                     }
@@ -706,6 +717,7 @@
         function saveLocalDB(data) {
             const ciphertext = CryptoJS.AES.encrypt(JSON.stringify(data), SECRET_KEY).toString();
             localStorage.setItem('finance_modern_db_secure', ciphertext);
+            // Bersihkan data lama yang tidak terenkripsi jika ada
             if(localStorage.getItem('finance_modern_db')) localStorage.removeItem('finance_modern_db');
         }
 
@@ -778,8 +790,18 @@
         // 3. UTILITY FUNCTIONS
         function formatRp(num) { return new Intl.NumberFormat('id-ID', { style: 'currency', currency: 'IDR', minimumFractionDigits: 0 }).format(num); }
         function formatDetailDate(iso) { if(!iso) return '-'; const d = new Date(iso); return `${String(d.getDate()).padStart(2,'0')}/${String(d.getMonth()+1).padStart(2,'0')}/${d.getFullYear()} - ${String(d.getHours()).padStart(2,'0')}:${String(d.getMinutes()).padStart(2,'0')}:${String(d.getSeconds()).padStart(2,'0')}`; }
-        function showToast(msg, type = 'success') { const box = document.getElementById('toastBox'); if(!box) return; const t = document.createElement('div'); t.className = `toast ${type}`; t.innerText = msg; box.appendChild(t); setTimeout(() => t.classList.add('show'), 10); setTimeout(() => { t.classList.remove('show'); setTimeout(() => t.remove(), 400); }, 3000); }
-        function closeModal(id) { const el = document.getElementById(id); if(el) el.classList.remove('active'); document.querySelectorAll('.custom-options.open').forEach(e => e.classList.remove('open')); }
+        
+        function showToast(msg, type = 'success') { 
+            const box = document.getElementById('toastBox'); if(!box) return; 
+            const t = document.createElement('div'); t.className = `toast ${type}`; t.innerText = msg; box.appendChild(t); 
+            setTimeout(() => t.classList.add('show'), 10); 
+            setTimeout(() => { t.classList.remove('show'); setTimeout(() => t.remove(), 400); }, 3000); 
+        }
+        
+        function closeModal(id) { 
+            const el = document.getElementById(id); if(el) el.classList.remove('active'); 
+            document.querySelectorAll('.custom-options.open').forEach(e => e.classList.remove('open')); 
+        }
         
         function properTitleCase(str) { 
             if(!str) return ""; 
@@ -799,35 +821,47 @@
         async function verifyTxPin() { const val = document.getElementById('inputTxPin').value; if (val.length < 4) { showToast("Sandi min 4 digit", "error"); return; } const hashedVal = await hashPIN(val); if (!profile.txPin) { profile.txPin = hashedVal; saveProfileLocal(); await saveProfileToSupabase(); showToast("Sandi Dibuat!", "success"); } else { if (hashedVal !== profile.txPin) { showToast("Sandi Salah!", "error"); return; } } closeModal('txPinModal'); if (pendingTxCallback) { pendingTxCallback(); pendingTxCallback = null; } }
         function openResetTxPinModal() { closeModal('txPinModal'); if (!profile.pin) { showToast("Buat PIN Profil utama dulu.", "error"); return; } const input = document.getElementById('inputResetTxAuthPin'); input.value = ''; document.getElementById('resetTxPinAuthModal').classList.add('active'); setTimeout(() => input.focus(), 300); }
         async function executeResetTxPin() { const pin = document.getElementById('inputResetTxAuthPin').value; const hashedPin = await hashPIN(pin); if (hashedPin === profile.pin) { profile.txPin = ''; saveProfileLocal(); await saveProfileToSupabase(); showToast("Sandi Direset!"); closeModal('resetTxPinAuthModal'); promptTxPin(pendingTxCallback); } else { showToast("PIN Salah!", "error"); } }
-        // 5. AUTH, REALTIME SYNC & GUEST MIGRATION ENGINE
+        // 5. AUTH, REALTIME SYNC & MIGRASI GUEST (ANTI-STUCK)
         function initAppHeader() { document.getElementById('headName').innerText = profile.name; document.getElementById('headGender').innerText = profile.gender; document.getElementById('headProfileImg').src = profile.photo; }
         
         async function fetchUserTransactions() {
             if (!currentUser) return;
             try {
-                if (!navigator.onLine) throw new Error("Offline mode.");
+                if (!navigator.onLine) throw new Error("Offline mode aktif.");
                 
                 const { data, error } = await sbClient.from('transactions').select('*').eq('user_id', currentUser.id).order('date', { ascending: true });
                 if (error) throw error;
 
-                // MIGRATION GUEST DATA LOGIC
+                // LOGIKA MIGRASI GUEST KE CLOUD (DIPERBAIKI AGAR TIDAK FREEZE)
                 const pendingData = localStorage.getItem('pending_guest_data');
                 if (pendingData) {
-                    const guestDb = JSON.parse(pendingData);
-                    if (data.length === 0 && guestDb.length > 0) {
-                        showToast("Memigrasi data Guest ke Cloud...", "success");
-                        const payload = guestDb.map(t => { 
-                            let newData = { ...t, user_id: currentUser.id }; 
-                            if(newData.id) delete newData.id; 
-                            return newData; 
-                        });
-                        await sbClient.from('transactions').insert(payload);
-                        localStorage.removeItem('pending_guest_data');
-                        const { data: newData } = await sbClient.from('transactions').select('*').eq('user_id', currentUser.id).order('date', { ascending: true });
-                        db = newData || [];
-                    } else {
-                        localStorage.removeItem('pending_guest_data');
-                        db = data;
+                    try {
+                        const guestDb = JSON.parse(pendingData);
+                        // Jika Cloud masih kosong, dan ada data Guest, lakukan migrasi!
+                        if (data.length === 0 && guestDb.length > 0) {
+                            showToast("Memigrasi data ke Cloud...", "success");
+                            const payload = guestDb.map(t => { 
+                                let newData = { ...t, user_id: currentUser.id }; 
+                                if(newData.id) delete newData.id; 
+                                return newData; 
+                            });
+                            
+                            const { error: insertErr } = await sbClient.from('transactions').insert(payload);
+                            if (insertErr) throw insertErr;
+                            
+                            localStorage.removeItem('pending_guest_data'); // Bersihkan setelah berhasil
+                            
+                            // Tarik ulang data yang sudah bersih dari server
+                            const { data: newData } = await sbClient.from('transactions').select('*').eq('user_id', currentUser.id).order('date', { ascending: true });
+                            db = newData || [];
+                        } else {
+                            // Jika Cloud sudah ada isinya, abaikan data guest agar tidak bentrok/dobel
+                            localStorage.removeItem('pending_guest_data');
+                            db = data;
+                        }
+                    } catch (migrationError) {
+                        console.error("Gagal migrasi:", migrationError);
+                        db = data; // Tetap gunakan data Cloud agar tidak stuck
                     }
                 } else {
                     db = data; 
@@ -836,7 +870,7 @@
                 saveLocalDB(db); 
                 if(typeof updateUI === 'function') updateUI(document.getElementById('searchTxInput') ? document.getElementById('searchTxInput').value : ''); 
             } catch (error) {
-                console.warn("Gagal Fetch, Pakai Lokal", error);
+                console.warn("Gagal Fetch, Pakai DB Lokal", error);
                 db = loadLocalDB(); 
                 if(typeof updateUI === 'function') updateUI(document.getElementById('searchTxInput') ? document.getElementById('searchTxInput').value : '');
             }
@@ -845,18 +879,18 @@
         function setupRealtime() {
             if (!currentUser) return;
             if (realTimeSubscription) sbClient.removeChannel(realTimeSubscription);
-            realTimeSubscription = sbClient.channel('custom-all-channel').on('postgres_changes', { event: '*', schema: 'public', table: 'transactions', filter: `user_id=eq.${currentUser.id}` }, payload => { fetchUserTransactions(); }).subscribe();
+            realTimeSubscription = sbClient.channel('custom-all-channel')
+                .on('postgres_changes', { event: '*', schema: 'public', table: 'transactions', filter: `user_id=eq.${currentUser.id}` }, payload => { 
+                    fetchUserTransactions(); 
+                }).subscribe();
         }
 
         sbClient.auth.onAuthStateChange(async (event, session) => {
-            // FIX LOGOUT BRUTAL: Tidak menggunakan localStorage.clear() lagi
+            // FIX LOGOUT: Tidak lagi menghapus seluruh storage HP (yang bikin rusak)
             if (event === 'SIGNED_OUT') {
                 currentUser = null;
-                // Hanya hapus database lokal terkait user lama, biarkan sesi Supabase tertutup natural
                 localStorage.removeItem('user_profile_secure');
                 localStorage.removeItem('finance_modern_db_secure');
-                
-                // Refresh bersih agar sistem bisa menerima login akun baru tanpa stuck
                 window.location.replace(window.location.pathname + '?v=' + Date.now());
                 return;
             }
@@ -871,11 +905,25 @@
                 
                 try {
                     const { data: profileData } = await sbClient.from('profiles').select('data').eq('id', currentUser.id).single();
-                    if (profileData && profileData.data) { profile = { ...profile, ...profileData.data }; } 
-                    else { if(profile.name === 'Guest') profile.name = properTitleCase(currentUser.user_metadata?.full_name) || 'Member'; profile.photo = currentUser.user_metadata?.avatar_url || profile.photo; await saveProfileToSupabase(); }
+                    if (profileData && profileData.data) { 
+                        profile = { ...profile, ...profileData.data }; 
+                    } else { 
+                        if(profile.name === 'Guest') profile.name = properTitleCase(currentUser.user_metadata?.full_name) || 'Member'; 
+                        profile.photo = currentUser.user_metadata?.avatar_url || profile.photo; 
+                        await saveProfileToSupabase(); 
+                    }
                 } catch(e) { console.warn("Gagal load profil", e); }
                 
-                profile.googleLinked = true; profile.googleEmail = currentUser.email; saveProfileLocal(); initAppHeader(); fetchUserTransactions(); setupRealtime();
+                profile.googleLinked = true; 
+                profile.googleEmail = currentUser.email; 
+                saveProfileLocal(); 
+                initAppHeader(); 
+                fetchUserTransactions(); 
+                setupRealtime();
+                
+                // Paksa tutup semua modal yang mungkin nyangkut saat baru selesai login
+                closeModal('googleAuthModal');
+                
             } else {
                 currentUser = null; 
                 const netStatus = document.getElementById('networkStatus');
@@ -884,16 +932,18 @@
                     netStatus.className = "status-sync sync-offline"; 
                 }
                 if (realTimeSubscription) { sbClient.removeChannel(realTimeSubscription); }
-                db = loadLocalDB(); if(typeof updateUI === 'function') updateUI(document.getElementById('searchTxInput') ? document.getElementById('searchTxInput').value : '');
+                db = loadLocalDB(); 
+                if(typeof updateUI === 'function') updateUI(document.getElementById('searchTxInput') ? document.getElementById('searchTxInput').value : '');
             }
         });
 
         document.getElementById('btnRealGoogleLogin').addEventListener('click', async () => { 
+            // Amankan data lokal sebelum dilempar ke Google
             if(!currentUser && db.length > 0) {
                 localStorage.setItem('pending_guest_data', JSON.stringify(db));
             }
             const { error } = await sbClient.auth.signInWithOAuth({ provider: 'google', options: { redirectTo: window.location.origin + window.location.pathname } }); 
-            if (error) showToast("Gagal Login", "error"); else closeModal('googleAuthModal'); 
+            if (error) showToast("Gagal Login", "error"); 
         });
 
         // 6. INTERAKSI UI DOM
