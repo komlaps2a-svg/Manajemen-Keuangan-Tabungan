@@ -24,7 +24,6 @@
 
         *, *::before, *::after { box-sizing: inherit; }
 
-        /* KELAS KHUSUS UNTUK FIX BUG GALERI MOBILE */
         .visually-hidden {
             position: absolute !important; width: 1px !important; height: 1px !important;
             padding: 0 !important; margin: -1px !important; overflow: hidden !important;
@@ -570,9 +569,11 @@
         </div>
     </div>
     <script>
-        // 1. KONFIGURASI SUPABASE GLOBAL
+        // 1. KONFIGURASI SUPABASE GLOBAL (Fix Tabrakan Variabel)
         const supabaseUrl = 'https://kkbfppuxuwcbapexlqsx.supabase.co';
         const supabaseKey = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImtrYmZwcHV4dXdjYmFwZXhscXN4Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzIwMDMwODAsImV4cCI6MjA4NzU3OTA4MH0.pOGHpiR333Ltp2g3BQvV8xSMbdbMeRMHJ3ZgecHDRzM';
+        
+        // Gunakan sbClient agar tidak bentrok dengan objek window.supabase bawaan CDN
         const sbClient = window.supabase.createClient(supabaseUrl, supabaseKey);
 
         // 2. GLOBAL STATE & DATA
@@ -602,7 +603,7 @@
             uang: `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="2" y="6" width="20" height="12" rx="2"/><circle cx="12" cy="12" r="2"/><path d="M6 12h.01M18 12h.01"/></svg>`,
             atm: `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="2" y="4" width="20" height="16" rx="2"/><path d="M6 8h12M6 12h2M10 12h2M14 12h2M6 16h6"/></svg>`,
             plus: `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="12" y1="5" x2="12" y2="19"></line><line x1="5" y1="12" x2="19" y2="12"></line></svg>`,
-            pinjam: `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M17 3v3m-4-3v3M7 3v3m14 8H3m18 4H3m2-14h14a2 2 0 0 1 2 2v14a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V7a2 2 0 0 1 2-2z"/></svg>`,
+            pinjam: `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M17 3v3m-4-3v3M7 3v3m14 8H3m18 4H3m2-14h14a2 2 0 0 1 2 2v14a2 2 0 0 1-2-2H5a2 2 0 0 1-2-2V7a2 2 0 0 1 2-2z"/></svg>`,
             check: `<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"></polyline></svg>`
         };
         const categories = { masuk: ['Gaji', 'Top-Up', 'Bonus', 'Usaha'], keluar: ['Makan', 'Transport', 'Belanja', 'Tagihan'] };
@@ -618,7 +619,7 @@
             return `hsl(${Math.abs(hash) % 360}, 70%, 55%)`; 
         }
 
-        // 3. UTILITY FUNCTIONS
+        // 3. UTILITY FUNCTIONS (Standard Global)
         function formatRp(num) { return new Intl.NumberFormat('id-ID', { style: 'currency', currency: 'IDR', minimumFractionDigits: 0 }).format(num); }
         function formatDetailDate(iso) { if(!iso) return '-'; const d = new Date(iso); return `${String(d.getDate()).padStart(2,'0')}/${String(d.getMonth()+1).padStart(2,'0')}/${d.getFullYear()} - ${String(d.getHours()).padStart(2,'0')}:${String(d.getMinutes()).padStart(2,'0')}:${String(d.getSeconds()).padStart(2,'0')}`; }
         function showToast(msg, type = 'success') { const box = document.getElementById('toastBox'); if(!box) return; const t = document.createElement('div'); t.className = `toast ${type}`; t.innerText = msg; box.appendChild(t); setTimeout(() => t.classList.add('show'), 10); setTimeout(() => { t.classList.remove('show'); setTimeout(() => t.remove(), 400); }, 3000); }
@@ -627,10 +628,19 @@
 
         let confirmAction = null;
         function openCustomConfirm(title, desc, action) { document.getElementById('confirmTitle').innerText = title; document.getElementById('confirmDesc').innerHTML = desc; confirmAction = action; document.getElementById('confirmModal').classList.add('active'); }
+        
+        // Listener harus dipasang setelah DOM ada, aman ditaruh di sini
         document.getElementById('btnConfirmYes').addEventListener('click', () => { if(confirmAction) confirmAction(); closeModal('confirmModal'); });
 
         // 4. PENYIMPANAN PROFIL & SANDI TRANSAKSI
-        async function saveProfileToSupabase() { if (!currentUser) return; try { await sbClient.from('profiles').upsert({ id: currentUser.id, data: profile }); } catch(e) {} }
+        async function saveProfileToSupabase() {
+            if (!currentUser) return;
+            try {
+                const { error } = await sbClient.from('profiles').upsert({ id: currentUser.id, data: profile });
+                if (error) console.error("Supabase Save Profile Error:", error.message);
+            } catch(e) {}
+        }
+
         function promptTxPin(callback) { pendingTxCallback = callback; const input = document.getElementById('inputTxPin'); input.value = ''; if (!profile.txPin) { document.getElementById('txPinTitle').innerText = "Buat Sandi Transaksi"; document.getElementById('txPinDesc').innerText = "Buat sandi khusus untuk pelunasan."; document.getElementById('btnVerifyTxPin').innerText = "Simpan & Lanjut"; } else { document.getElementById('txPinTitle').innerText = "Sandi Transaksi"; document.getElementById('txPinDesc').innerText = "Masukkan sandi transaksi Anda."; document.getElementById('btnVerifyTxPin').innerText = "Konfirmasi"; } document.getElementById('txPinModal').classList.add('active'); setTimeout(() => input.focus(), 300); }
         async function verifyTxPin() { const val = document.getElementById('inputTxPin').value; if (val.length < 4) { showToast("Sandi min 4 digit", "error"); return; } if (!profile.txPin) { profile.txPin = val; localStorage.setItem('user_profile', JSON.stringify(profile)); await saveProfileToSupabase(); showToast("Sandi Dibuat!", "success"); } else { if (val !== profile.txPin) { showToast("Sandi Salah!", "error"); return; } } closeModal('txPinModal'); if (pendingTxCallback) { pendingTxCallback(); pendingTxCallback = null; } }
         function openResetTxPinModal() { closeModal('txPinModal'); if (!profile.pin) { showToast("Buat PIN Profil utama dulu.", "error"); return; } const input = document.getElementById('inputResetTxAuthPin'); input.value = ''; document.getElementById('resetTxPinAuthModal').classList.add('active'); setTimeout(() => input.focus(), 300); }
@@ -638,43 +648,93 @@
 
         // 5. AUTH & REALTIME SYNC ENGINE
         function initAppHeader() { document.getElementById('headName').innerText = profile.name; document.getElementById('headGender').innerText = profile.gender; document.getElementById('headProfileImg').src = profile.photo; }
-        
+        initAppHeader();
+
         async function fetchUserTransactions() {
             if (!currentUser) return;
             const { data, error } = await sbClient.from('transactions').select('*').eq('user_id', currentUser.id).order('date', { ascending: true });
-            if (!error && data) { db = data; localStorage.setItem('finance_modern_db', JSON.stringify(db)); if(typeof updateUI === 'function') updateUI(document.getElementById('searchTxInput').value); }
+            if (!error && data) {
+                db = data;
+                localStorage.setItem('finance_modern_db', JSON.stringify(db));
+                if(typeof updateUI === 'function') updateUI(document.getElementById('searchTxInput').value);
+            }
         }
 
         function setupRealtime() {
             if (!currentUser) return;
             if (realTimeSubscription) sbClient.removeChannel(realTimeSubscription);
-            realTimeSubscription = sbClient.channel('custom-all-channel').on('postgres_changes', { event: '*', schema: 'public', table: 'transactions', filter: `user_id=eq.${currentUser.id}` }, payload => { fetchUserTransactions(); }).subscribe();
+            realTimeSubscription = sbClient.channel('custom-all-channel')
+                .on('postgres_changes', { event: '*', schema: 'public', table: 'transactions', filter: `user_id=eq.${currentUser.id}` }, payload => {
+                    fetchUserTransactions();
+                }).subscribe();
         }
 
+        // OFFLINE TO ONLINE AUTO-SYNC
         window.addEventListener('online', async () => { 
-            document.getElementById('networkStatus').innerText = "Online Mode (Cloud)"; document.getElementById('networkStatus').className = "status-sync sync-online"; 
+            document.getElementById('networkStatus').innerText = "Online Mode (Cloud)"; 
+            document.getElementById('networkStatus').className = "status-sync sync-online"; 
             if (currentUser) { 
-                let lDb = JSON.parse(localStorage.getItem('finance_modern_db')) || []; let unsynced = lDb.filter(t => !t.user_id || typeof t.id === 'number'); 
-                if(unsynced.length > 0) { showToast("Koneksi pulih. Menyelaraskan...", "success"); for (let t of unsynced) { let txData = { ...t, user_id: currentUser.id }; if(txData.id && typeof txData.id === 'number') delete txData.id; await sbClient.from('transactions').insert([txData]); } fetchUserTransactions(); } 
+                let lDb = JSON.parse(localStorage.getItem('finance_modern_db')) || []; 
+                let unsynced = lDb.filter(t => !t.user_id || typeof t.id === 'number'); 
+                if(unsynced.length > 0) { 
+                    showToast("Koneksi pulih. Menyelaraskan...", "success"); 
+                    for (let t of unsynced) { 
+                        let txData = { ...t, user_id: currentUser.id }; 
+                        if(txData.id && typeof txData.id === 'number') delete txData.id; 
+                        await sbClient.from('transactions').insert([txData]); 
+                    } 
+                    fetchUserTransactions();
+                } 
             } 
         });
-        window.addEventListener('offline', () => { document.getElementById('networkStatus').innerText = "Offline Mode (Lokal)"; document.getElementById('networkStatus').className = "status-sync sync-offline"; });
+        
+        window.addEventListener('offline', () => { 
+            document.getElementById('networkStatus').innerText = "Offline Mode (Lokal)"; 
+            document.getElementById('networkStatus').className = "status-sync sync-offline"; 
+        });
 
+        // SUPABASE SESSION LISTENER
         sbClient.auth.onAuthStateChange(async (event, session) => {
             if (session && session.user) {
-                currentUser = session.user; document.getElementById('networkStatus').innerText = navigator.onLine ? "Online Mode (Cloud)" : "Offline Mode (Lokal)"; document.getElementById('networkStatus').className = navigator.onLine ? "status-sync sync-online" : "status-sync sync-offline"; 
+                currentUser = session.user;
+                document.getElementById('networkStatus').innerText = navigator.onLine ? "Online Mode (Cloud)" : "Offline Mode (Lokal)"; 
+                document.getElementById('networkStatus').className = navigator.onLine ? "status-sync sync-online" : "status-sync sync-offline"; 
+                
+                // Ambil data profil dari Supabase
                 const { data: profileData } = await sbClient.from('profiles').select('data').eq('id', currentUser.id).single();
-                if (profileData && profileData.data) { profile = { ...profile, ...profileData.data }; } else { if(profile.name === 'Guest') profile.name = currentUser.user_metadata?.full_name || 'Member'; profile.photo = currentUser.user_metadata?.avatar_url || profile.photo; await saveProfileToSupabase(); }
-                profile.googleLinked = true; profile.googleEmail = currentUser.email; localStorage.setItem('user_profile', JSON.stringify(profile)); initAppHeader(); fetchUserTransactions(); setupRealtime();
+                if (profileData && profileData.data) {
+                    profile = { ...profile, ...profileData.data };
+                } else {
+                    if(profile.name === 'Guest') profile.name = currentUser.user_metadata?.full_name || 'Member'; 
+                    profile.photo = currentUser.user_metadata?.avatar_url || profile.photo; 
+                    await saveProfileToSupabase();
+                }
+                profile.googleLinked = true; 
+                profile.googleEmail = currentUser.email; 
+                localStorage.setItem('user_profile', JSON.stringify(profile)); 
+                initAppHeader();
+
+                fetchUserTransactions();
+                setupRealtime();
             } else {
-                currentUser = null; document.getElementById('networkStatus').innerText = "Offline Mode (Lokal)"; document.getElementById('networkStatus').className = "status-sync sync-offline"; 
+                currentUser = null;
+                document.getElementById('networkStatus').innerText = "Offline Mode (Lokal)"; 
+                document.getElementById('networkStatus').className = "status-sync sync-offline"; 
                 if (realTimeSubscription) { sbClient.removeChannel(realTimeSubscription); }
-                db = JSON.parse(localStorage.getItem('finance_modern_db')) || []; if(typeof updateUI === 'function') updateUI(document.getElementById('searchTxInput').value);
+                db = JSON.parse(localStorage.getItem('finance_modern_db')) || []; 
+                if(typeof updateUI === 'function') updateUI(document.getElementById('searchTxInput').value);
             }
         });
 
-        document.getElementById('btnRealGoogleLogin').addEventListener('click', async () => { const { error } = await sbClient.auth.signInWithOAuth({ provider: 'google', options: { redirectTo: window.location.origin } }); if (error) showToast("Gagal Login", "error"); else closeModal('googleAuthModal'); });
-        // 6. INTERAKSI UI DOM
+        document.getElementById('btnRealGoogleLogin').addEventListener('click', async () => { 
+            const { error } = await sbClient.auth.signInWithOAuth({ 
+                provider: 'google',
+                options: { redirectTo: window.location.origin }
+            });
+            if (error) showToast("Gagal Login", "error");
+            else closeModal('googleAuthModal'); 
+        });
+        // 6. INTERAKSI UI DOM (Fungsi Global Absolut)
         function switchWallet(type) { activeWallet = type; document.getElementById('walletSwitchContainer').setAttribute('data-active', type); renderShortcuts(); updateUI(document.getElementById('searchTxInput').value); }
         function toggleCustomSelect(id) { const box = document.getElementById(id); const isOpen = box.classList.contains('open'); document.querySelectorAll('.custom-options.open').forEach(el => el.classList.remove('open')); if(!isOpen) box.classList.add('open'); }
         function applyTimeFilter(days, labelText) { currentTimeFilter = days; document.getElementById('dispTimeFilter').innerText = labelText; closeModal(''); updateUI(document.getElementById('searchTxInput').value); }
@@ -682,26 +742,71 @@
         function selectCategory(val) { document.getElementById('tx-category').value = val; document.getElementById('dispTxCat').innerText = val; closeModal(''); }
         function toggleSection(sec, icn) { document.getElementById(sec).classList.toggle('hidden'); document.getElementById(icn).classList.toggle('rotated'); }
         
-        function openCSVModal() { if(db.length === 0) { showToast("Data kosong.", "error"); return; } document.getElementById('csvExportModal').classList.add('active'); }
+        // LOGIKA EKSPOR CSV CUSTOM
+        function openCSVModal() {
+            if(db.length === 0) { showToast("Data kosong, tidak ada yang bisa diekspor.", "error"); return; }
+            document.getElementById('csvExportModal').classList.add('active');
+        }
         function executeCSVExport() { 
-            closeModal('csvExportModal'); let csv = "Tanggal,Dompet,Tipe,Kategori,Deskripsi,Peminjam,Nominal,Status\n"; 
+            closeModal('csvExportModal');
+            let csv = "Tanggal,Dompet,Tipe,Kategori,Deskripsi,Peminjam,Nominal,Status\n"; 
+            
+            // Terapkan filter waktu yang sama dengan UI saat ini
             const today = new Date(); today.setHours(0,0,0,0);
-            const filteredData = db.filter(tx => { if(tx.wallet !== activeWallet) return false; if(currentTimeFilter !== 0) { const d = new Date(tx.date); d.setHours(0,0,0,0); if(Math.floor(Math.abs(today - d) / 86400000) > currentTimeFilter) return false; } return true; });
+            const filteredData = db.filter(tx => { 
+                if(tx.wallet !== activeWallet) return false; 
+                if(currentTimeFilter !== 0) { 
+                    const d = new Date(tx.date); d.setHours(0,0,0,0); 
+                    if(Math.floor(Math.abs(today - d) / 86400000) > currentTimeFilter) return false; 
+                } 
+                return true; 
+            });
+
             if(filteredData.length === 0) { showToast("Data filter kosong.", "error"); return; }
-            [...filteredData].sort((a,b) => new Date(a.date) - new Date(b.date)).forEach(row => { let r = [formatDetailDate(row.date), row.wallet, row.type, row.category, row.desc, row.borrower||'-', row.amount, row.status]; csv += r.map(v => `"${v}"`).join(",") + "\n"; }); 
-            const blob = new Blob([csv], { type: 'text/csv;charset=utf-8;' }); const link = document.createElement("a"); link.href = URL.createObjectURL(blob); link.download = `Laporan_${activeWallet.toUpperCase()}_${new Date().toISOString().split('T')[0]}.csv`; 
-            document.body.appendChild(link); link.click(); document.body.removeChild(link); showToast("CSV Berhasil Diunduh", "success"); 
+
+            [...filteredData].sort((a,b) => new Date(a.date) - new Date(b.date)).forEach(row => { 
+                let r = [formatDetailDate(row.date), row.wallet, row.type, row.category, row.desc, row.borrower||'-', row.amount, row.status]; 
+                csv += r.map(v => `"${v}"`).join(",") + "\n"; 
+            }); 
+            
+            const blob = new Blob([csv], { type: 'text/csv;charset=utf-8;' }); 
+            const link = document.createElement("a"); link.href = URL.createObjectURL(blob); 
+            link.download = `Laporan_${activeWallet.toUpperCase()}_${new Date().toISOString().split('T')[0]}.csv`; 
+            document.body.appendChild(link); link.click(); document.body.removeChild(link); 
+            showToast("CSV Berhasil Diunduh", "success"); 
         }
 
         // 7. MANAJEMEN PROFIL & UPLOAD GAMBAR
         function openProfileView() { 
             let inT = 0, outT = 0; db.forEach(t => { if(t.type === 'masuk') inT += t.amount; else outT += t.amount; }); 
-            document.getElementById('viewProfileImg').src = profile.photo; document.getElementById('viewProfileName').innerText = profile.name; document.getElementById('viewJoinDate').innerText = "Bergabung: " + formatDetailDate(profile.joinDate); document.getElementById('viewGender').innerText = profile.gender || '-'; document.getElementById('viewBirth').innerText = profile.birthDate || '-'; document.getElementById('viewTotalMasuk').innerText = formatRp(inT); document.getElementById('viewTotalKeluar').innerText = formatRp(outT); 
-            const stat = document.getElementById('viewGoogleStatus'); const btnText = document.getElementById('textGoogleLink'); const btn = document.getElementById('btnGoogleLink'); 
+            document.getElementById('viewProfileImg').src = profile.photo; 
+            document.getElementById('viewProfileName').innerText = profile.name; 
+            document.getElementById('viewJoinDate').innerText = "Bergabung: " + formatDetailDate(profile.joinDate); 
+            document.getElementById('viewGender').innerText = profile.gender || '-'; 
+            document.getElementById('viewBirth').innerText = profile.birthDate || '-'; 
+            document.getElementById('viewTotalMasuk').innerText = formatRp(inT); 
+            document.getElementById('viewTotalKeluar').innerText = formatRp(outT); 
+            
+            const stat = document.getElementById('viewGoogleStatus'); 
+            const btnText = document.getElementById('textGoogleLink'); 
+            const btn = document.getElementById('btnGoogleLink'); 
+            
             if(currentUser) { 
-                stat.innerHTML = `<span style="color:var(--hijau); font-weight:700;">${currentUser.email}</span>`; btnText.innerText = "Logout"; btn.style.borderColor = "var(--merah)"; btn.style.color = "var(--merah)"; 
-                btn.onclick = async () => { openCustomConfirm("Logout Akun", "Logout dari Cloud?", async () => { await sbClient.auth.signOut(); profile.googleLinked = false; profile.googleEmail = ''; localStorage.setItem('user_profile', JSON.stringify(profile)); showToast("Logout berhasil", "success"); closeModal('profileViewModal'); }); }; 
-            } else { stat.innerText = "Tidak Terhubung"; stat.style.color = "var(--text-muted)"; btnText.innerText = "Hubungkan"; btn.style.borderColor = "#4285F4"; btn.style.color = "#4285F4"; btn.onclick = openGoogleAuthModal; } 
+                stat.innerHTML = `<span style="color:var(--hijau); font-weight:700;">${currentUser.email}</span>`; 
+                btnText.innerText = "Logout"; btn.style.borderColor = "var(--merah)"; btn.style.color = "var(--merah)"; 
+                btn.onclick = async () => { 
+                    openCustomConfirm("Logout Akun", "Logout dari Cloud?", async () => { 
+                        await sbClient.auth.signOut(); 
+                        profile.googleLinked = false; profile.googleEmail = ''; 
+                        localStorage.setItem('user_profile', JSON.stringify(profile)); 
+                        showToast("Logout berhasil", "success"); closeModal('profileViewModal'); 
+                    }); 
+                }; 
+            } else { 
+                stat.innerText = "Tidak Terhubung"; stat.style.color = "var(--text-muted)"; 
+                btnText.innerText = "Hubungkan"; btn.style.borderColor = "#4285F4"; btn.style.color = "#4285F4"; 
+                btn.onclick = openGoogleAuthModal; 
+            } 
             document.getElementById('profileViewModal').classList.add('active'); 
         }
         
@@ -712,36 +817,88 @@
         function openProfileEdit() { document.getElementById('editProfileImg').src = profile.photo; document.getElementById('editName').value = profile.name !== 'Guest' ? profile.name : ''; selectGender(profile.gender); document.getElementById('editBirth').value = profile.birthDate; document.getElementById('editPin').value = profile.pin; document.getElementById('profileEditModal').classList.add('active'); }
         
         document.getElementById('profileUploader').addEventListener('change', function(e) { 
-            const f = e.target.files[0]; if(!f) return; showToast("Mengompresi foto...", "success"); const reader = new FileReader(); 
-            reader.onload = function(evt) { const img = new Image(); img.onload = function() { const canvas = document.createElement('canvas'); const MAX_WIDTH = 400; const MAX_HEIGHT = 400; let width = img.width; let height = img.height; if (width > height) { if (width > MAX_WIDTH) { height *= MAX_WIDTH / width; width = MAX_WIDTH; } } else { if (height > MAX_HEIGHT) { width *= MAX_HEIGHT / height; height = MAX_HEIGHT; } } canvas.width = width; canvas.height = height; const ctx = canvas.getContext('2d'); ctx.drawImage(img, 0, 0, width, height); profile.photo = canvas.toDataURL('image/jpeg', 0.6); document.getElementById('editProfileImg').src = profile.photo; }; img.src = evt.target.result; }; reader.readAsDataURL(f); 
+            const f = e.target.files[0]; if(!f) return; 
+            showToast("Mengompresi foto...", "success"); const reader = new FileReader(); 
+            reader.onload = function(evt) { 
+                const img = new Image();
+                img.onload = function() {
+                    const canvas = document.createElement('canvas'); const MAX_WIDTH = 400; const MAX_HEIGHT = 400; let width = img.width; let height = img.height;
+                    if (width > height) { if (width > MAX_WIDTH) { height *= MAX_WIDTH / width; width = MAX_WIDTH; } } else { if (height > MAX_HEIGHT) { width *= MAX_HEIGHT / height; height = MAX_HEIGHT; } }
+                    canvas.width = width; canvas.height = height; const ctx = canvas.getContext('2d'); ctx.drawImage(img, 0, 0, width, height);
+                    profile.photo = canvas.toDataURL('image/jpeg', 0.6); 
+                    document.getElementById('editProfileImg').src = profile.photo; 
+                }; img.src = evt.target.result;
+            }; reader.readAsDataURL(f); 
         });
 
         document.getElementById('editBirth').addEventListener('input', function(e) { let v = e.target.value.replace(/\D/g, ''); if (v.length > 8) v = v.substring(0, 8); let hari = v.substring(0, 2); let bulan = v.substring(2, 4); let tahun = v.substring(4, 8); if (hari.length === 2 && parseInt(hari) > 31) hari = '31'; if (hari.length === 2 && parseInt(hari) === 0) hari = '01'; if (bulan.length === 2 && parseInt(bulan) > 12) bulan = '12'; if (bulan.length === 2 && parseInt(bulan) === 0) bulan = '01'; let finalFormat = hari; if (v.length >= 3) finalFormat += '/' + bulan; if (v.length >= 5) finalFormat += '/' + tahun; e.target.value = finalFormat; });
-        async function saveProfileData() { profile.name = smartCapitalize(document.getElementById('editName').value.trim()) || 'Guest'; profile.gender = document.getElementById('editGender').value; profile.birthDate = document.getElementById('editBirth').value; profile.pin = document.getElementById('editPin').value; localStorage.setItem('user_profile', JSON.stringify(profile)); await saveProfileToSupabase(); initAppHeader(); closeModal('profileEditModal'); showToast("Profil Disimpan"); }
-        async function executeFactoryReset() { if (!currentUser) return; showToast("Memulai format...", "success"); db = []; localStorage.removeItem('finance_modern_db'); try { const { error } = await sbClient.from('transactions').delete().eq('user_id', currentUser.id); if (error) throw error; showToast("Database musnah.", "success"); } catch (e) { showToast("Gagal reset.", "error"); } closeModal('resetConfirmModal'); updateUI(document.getElementById('searchTxInput').value); }
+        
+        async function saveProfileData() { 
+            profile.name = smartCapitalize(document.getElementById('editName').value.trim()) || 'Guest'; 
+            profile.gender = document.getElementById('editGender').value; 
+            profile.birthDate = document.getElementById('editBirth').value; 
+            profile.pin = document.getElementById('editPin').value; 
+            localStorage.setItem('user_profile', JSON.stringify(profile)); 
+            await saveProfileToSupabase(); 
+            initAppHeader(); closeModal('profileEditModal'); showToast("Profil Disimpan"); 
+        }
+        
+        async function executeFactoryReset() { 
+            if (!currentUser) return; showToast("Memulai format...", "success"); 
+            db = []; localStorage.removeItem('finance_modern_db'); 
+            try { 
+                const { error } = await sbClient.from('transactions').delete().eq('user_id', currentUser.id);
+                if (error) throw error;
+                showToast("Database musnah.", "success"); 
+            } catch (e) { showToast("Gagal reset.", "error"); } 
+            closeModal('resetConfirmModal'); updateUI(document.getElementById('searchTxInput').value); 
+        }
 
-        // 8. INPUT TRANSAKSI LOGIC (DENGAN REGEX SUPER KETAT)
+        // 8. INPUT TRANSAKSI LOGIC
         let isLoanMode = false;
         function quickInput(type, cat, desc, isLoan = false) { 
-            isLoanMode = isLoan; document.getElementById('tx-type').value = type; document.getElementById('modal-title').innerText = isLoan ? 'Catat Uang Dipinjam' : (type === 'masuk' ? 'Input Pemasukan' : 'Input Pengeluaran'); document.getElementById('tx-desc').value = ''; document.getElementById('tx-category-manual').value = ''; document.getElementById('tx-borrower').value = ''; 
-            if(cat === 'MANUAL') { document.getElementById('catSelectWrapper').style.display = 'none'; document.getElementById('tx-category-manual').style.display = 'block'; document.getElementById('label-kategori').innerText = 'Ketik Nama Kategori'; } 
-            else { document.getElementById('catSelectWrapper').style.display = 'block'; document.getElementById('tx-category-manual').style.display = 'none'; document.getElementById('label-kategori').innerText = 'Kategori'; const box = document.getElementById('catOptionsBox'); const arr = type==='masuk' ? categories.masuk : categories.keluar; box.innerHTML = arr.map(c => `<div class="custom-option" onclick="selectCategory('${c}')">${c}</div>`).join(''); if(!arr.includes(cat)) box.innerHTML += `<div class="custom-option" onclick="selectCategory('${cat}')">${cat}</div>`; selectCategory(cat); } 
+            isLoanMode = isLoan; document.getElementById('tx-type').value = type; 
+            document.getElementById('modal-title').innerText = isLoan ? 'Catat Uang Dipinjam' : (type === 'masuk' ? 'Input Pemasukan' : 'Input Pengeluaran'); 
+            document.getElementById('tx-desc').value = ''; document.getElementById('tx-category-manual').value = ''; document.getElementById('tx-borrower').value = ''; 
+            
+            if(cat === 'MANUAL') { 
+                document.getElementById('catSelectWrapper').style.display = 'none'; document.getElementById('tx-category-manual').style.display = 'block'; document.getElementById('label-kategori').innerText = 'Ketik Nama Kategori'; 
+            } else { 
+                document.getElementById('catSelectWrapper').style.display = 'block'; document.getElementById('tx-category-manual').style.display = 'none'; document.getElementById('label-kategori').innerText = 'Kategori'; 
+                const box = document.getElementById('catOptionsBox'); const arr = type==='masuk' ? categories.masuk : categories.keluar; 
+                box.innerHTML = arr.map(c => `<div class="custom-option" onclick="selectCategory('${c}')">${c}</div>`).join(''); 
+                if(!arr.includes(cat)) box.innerHTML += `<div class="custom-option" onclick="selectCategory('${cat}')">${cat}</div>`; 
+                selectCategory(cat); 
+            } 
+            
             const bw = document.getElementById('borrowerWrapper'); const lbDesc = document.getElementById('label-desc'); 
-            if(isLoanMode) { bw.style.display = 'block'; lbDesc.innerText = 'Deskripsi (Opsional)'; document.getElementById('tx-desc').value = 'Uang Dipinjamkan'; } else { bw.style.display = 'none'; lbDesc.innerText = 'Deskripsi'; document.getElementById('tx-desc').value = desc; } 
-            document.getElementById('tx-amount').value = ''; rawAmount = 0; document.getElementById('txModal').classList.add('active'); setTimeout(() => { if(isLoanMode) document.getElementById('tx-borrower').focus(); else if(cat==='MANUAL') document.getElementById('tx-category-manual').focus(); else document.getElementById('tx-amount').focus(); }, 300); 
+            if(isLoanMode) { bw.style.display = 'block'; lbDesc.innerText = 'Deskripsi (Opsional)'; document.getElementById('tx-desc').value = 'Uang Dipinjamkan'; } 
+            else { bw.style.display = 'none'; lbDesc.innerText = 'Deskripsi'; document.getElementById('tx-desc').value = desc; } 
+            
+            document.getElementById('tx-amount').value = ''; rawAmount = 0; document.getElementById('txModal').classList.add('active'); 
+            setTimeout(() => { if(isLoanMode) document.getElementById('tx-borrower').focus(); else if(cat==='MANUAL') document.getElementById('tx-category-manual').focus(); else document.getElementById('tx-amount').focus(); }, 300); 
         }
         
         document.getElementById('tx-amount').addEventListener('input', function() { let v = this.value.replace(/[^0-9]/g, ''); if(v==='') { rawAmount=0; this.value=''; return; } rawAmount = parseInt(v, 10); this.value = rawAmount.toLocaleString('id-ID'); });
         
         function lunasiPinjaman(e, txId) { 
-            e.stopPropagation(); promptTxPin(() => { 
+            e.stopPropagation(); 
+            promptTxPin(() => { 
                 const strTxId = String(txId); const idx = db.findIndex(t => String(t.id) === strTxId || String(t.date) === strTxId); 
                 if(idx > -1) { 
                     const tx = db[idx]; const targetWallet = tx.wallet; const walletName = targetWallet === 'harian' ? 'Dompet Harian' : 'Tabungan'; 
                     openCustomConfirm("Pelunasan Pinjaman", `Uang senilai <b>${formatRp(tx.amount)}</b> dari <b>${tx.borrower}</b> sudah lunas ke <b>${walletName}</b>?`, async () => { 
-                        const deskripsiLunas = `Lunas: ${tx.desc} (${tx.borrower})`; const lData = { wallet: targetWallet, type: 'masuk', category: 'Lunas Pinjaman', desc: deskripsiLunas, borrower: tx.borrower, amount: tx.amount, date: new Date().toISOString() }; 
-                        if(currentUser) { lData.user_id = currentUser.id; await sbClient.from('transactions').update({ status: 'lunas_pinjaman' }).eq('id', tx.id); await sbClient.from('transactions').insert([lData]); fetchUserTransactions(); } 
-                        else { db[idx].status = 'lunas_pinjaman'; lData.id = Date.now(); db.push(lData); localStorage.setItem('finance_modern_db', JSON.stringify(db)); updateUI(document.getElementById('searchTxInput').value); } 
+                        const deskripsiLunas = `Lunas: ${tx.desc} (${tx.borrower})`; 
+                        const lData = { wallet: targetWallet, type: 'masuk', category: 'Lunas Pinjaman', desc: deskripsiLunas, borrower: tx.borrower, amount: tx.amount, date: new Date().toISOString() }; 
+                        if(currentUser) { 
+                            lData.user_id = currentUser.id;
+                            await sbClient.from('transactions').update({ status: 'lunas_pinjaman' }).eq('id', tx.id);
+                            await sbClient.from('transactions').insert([lData]);
+                            fetchUserTransactions();
+                        } else { 
+                            db[idx].status = 'lunas_pinjaman'; lData.id = Date.now(); db.push(lData); 
+                            localStorage.setItem('finance_modern_db', JSON.stringify(db)); updateUI(document.getElementById('searchTxInput').value); 
+                        } 
                         showToast(`Pinjaman Lunas`, "success"); 
                     }); 
                 } 
@@ -751,43 +908,40 @@
         async function checkAndAutoLunasHutang() { 
             let inT = 0, outT = 0; db.filter(t => t.wallet === 'harian').forEach(t => { if(t.type === 'masuk') inT += t.amount; else outT += t.amount; }); 
             if((inT - outT) >= 0) { 
-                let clear = false; for (let t of db) { if(t.wallet === 'harian' && t.status === 'hutang') { if(currentUser) await sbClient.from('transactions').update({ status: 'lunas_hutang' }).eq('id', t.id); else t.status = 'lunas_hutang'; clear = true; } } 
-                if(clear && !currentUser) localStorage.setItem('finance_modern_db', JSON.stringify(db)); if(clear) showToast("Hutang otomatis lunas!", "success"); if(clear && currentUser) fetchUserTransactions();
+                let clear = false; 
+                for (let t of db) { 
+                    if(t.wallet === 'harian' && t.status === 'hutang') { 
+                        if(currentUser) await sbClient.from('transactions').update({ status: 'lunas_hutang' }).eq('id', t.id); 
+                        else t.status = 'lunas_hutang'; 
+                        clear = true; 
+                    } 
+                } 
+                if(clear && !currentUser) localStorage.setItem('finance_modern_db', JSON.stringify(db)); 
+                if(clear) showToast("Hutang otomatis lunas!", "success"); 
+                if(clear && currentUser) fetchUserTransactions();
             } 
         }
 
         document.getElementById('btnExecuteTx').addEventListener('click', async () => { 
             if(rawAmount <= 0) { showToast("Nominal 0", "error"); return; } 
             const isSaving = document.getElementById('tx-is-saving').value; if (isSaving === 'true') return; document.getElementById('tx-is-saving').value = 'true'; 
-            
             const type = document.getElementById('tx-type').value; 
             let cF = document.getElementById('tx-category-manual').style.display === 'block' ? document.getElementById('tx-category-manual').value.trim() : document.getElementById('tx-category').value; 
             let dF = document.getElementById('tx-desc').value.trim(); 
-            
             if(!cF || !dF) { showToast("Isi data", "error"); document.getElementById('tx-is-saving').value = 'false'; return; } 
-            
-            // --- REGEX SUPER KETAT PEMBLOKIR TABUNGAN DI DOMPET HARIAN ---
-            const tabunganRegex = /tabung|tbgn|tbg|nabung/i;
-            const isTabunganRelated = tabunganRegex.test(cF) || tabunganRegex.test(dF);
-            
             cF = smartCapitalize(cF); dF = smartCapitalize(dF); 
-            
             let stat = 'normal'; let brw = ''; let txToSave = []; 
             let sI_har = 0, sO_har = 0; db.filter(t => t.wallet === 'harian').forEach(t => { if(t.type === 'masuk') sI_har += t.amount; else sO_har += t.amount; }); let saldoHarian = sI_har - sO_har; 
             let sI_tab = 0, sO_tab = 0; db.filter(t => t.wallet === 'tabungan').forEach(t => { if(t.type === 'masuk') sI_tab += t.amount; else sO_tab += t.amount; }); let saldoTabungan = sI_tab - sO_tab; 
 
-            // Validasi Blokir & Pindah Tabungan dengan Regex
-            if (activeWallet === 'harian' && isTabunganRelated) { 
-                if (type === 'masuk') { 
-                    showToast("Ditolak! Indikasi manipulasi tabungan.", "error"); 
-                    document.getElementById('tx-is-saving').value = 'false'; return; 
-                } 
+            if (activeWallet === 'harian' && cF.toLowerCase() === 'tabungan') { 
+                if (type === 'masuk') { showToast("Ditolak!", "error"); document.getElementById('tx-is-saving').value = 'false'; return; } 
                 else if (type === 'keluar') { 
-                    if (saldoHarian < rawAmount) { showToast(`Saldo harian kurang!`, "error"); document.getElementById('tx-is-saving').value = 'false'; return; } 
+                    if (saldoHarian < rawAmount) { showToast(`Saldo kurang!`, "error"); document.getElementById('tx-is-saving').value = 'false'; return; } 
                     txToSave.push({ wallet: 'harian', type: 'keluar', category: 'Pindah Tabungan', desc: 'Auto-Transfer ke Tabungan', borrower: '', status: 'normal', amount: rawAmount, date: new Date().toISOString() }); 
                     txToSave.push({ wallet: 'tabungan', type: 'masuk', category: 'Setor Manual', desc: dF, borrower: '', status: 'normal', amount: rawAmount, date: new Date().toISOString() }); 
                 } 
-            } else if (activeWallet === 'tabungan' && /pindah|harian|tarik/i.test(cF) && cF.toLowerCase().includes('harian')) { 
+            } else if (activeWallet === 'tabungan' && cF.toLowerCase() === 'pindah harian') { 
                 if (type === 'keluar') { 
                     if(rawAmount > saldoTabungan) { showToast("Saldo tabungan kurang!", "error"); document.getElementById('tx-is-saving').value = 'false'; return; } 
                     txToSave.push({ wallet: 'tabungan', type: 'keluar', category: 'Pindah Harian', desc: dF || 'Tarik ke Dompet Harian', borrower: '', status: 'normal', amount: rawAmount, date: new Date().toISOString() }); 
@@ -804,7 +958,7 @@
                         if (isLoanMode) { brw = smartCapitalize(document.getElementById('tx-borrower').value.trim()); if(!brw) { showToast("Isi peminjam", "error"); document.getElementById('tx-is-saving').value = 'false'; return; } stat = 'dipinjam'; txToSave.push({ wallet: activeWallet, type: type, category: cF, desc: dF, borrower: brw, status: stat, amount: rawAmount, date: new Date().toISOString() }); } 
                         else { const baseTime = Date.now(); txToSave.push({ wallet: 'tabungan', type: 'keluar', category: 'Pencairan', desc: `Dicairkan untuk: ${dF}`, borrower: '', status: 'normal', amount: rawAmount, date: new Date(baseTime).toISOString() }); txToSave.push({ wallet: 'harian', type: 'masuk', category: 'Dari Tabungan', desc: `Pencairan untuk: ${dF}`, borrower: '', status: 'normal', amount: rawAmount, date: new Date(baseTime + 1000).toISOString() }); txToSave.push({ wallet: 'harian', type: 'keluar', category: cF, desc: dF, borrower: '', status: 'normal', amount: rawAmount, date: new Date(baseTime + 2000).toISOString() }); } 
                     } else if (type === 'masuk') { 
-                        if (saldoHarian < rawAmount) { showToast(`Saldo Harian kurang untuk ditabung!`, "error"); document.getElementById('tx-is-saving').value = 'false'; return; } 
+                        if (saldoHarian < rawAmount) { showToast(`Saldo kurang!`, "error"); document.getElementById('tx-is-saving').value = 'false'; return; } 
                         txToSave.push({ wallet: 'harian', type: 'keluar', category: 'Pindah Tabungan', desc: 'Auto-Transfer ke Tabungan', borrower: '', status: 'normal', amount: rawAmount, date: new Date().toISOString() }); 
                         txToSave.push({ wallet: 'tabungan', type: 'masuk', category: cF, desc: dF, borrower: '', status: 'normal', amount: rawAmount, date: new Date().toISOString() }); 
                     } 
@@ -814,7 +968,8 @@
             if(currentUser) { 
                 try { 
                     const payload = txToSave.map(t => { let data = { ...t, user_id: currentUser.id }; delete data.id; return data; });
-                    const { error } = await sbClient.from('transactions').insert(payload); if(error) throw error;
+                    const { error } = await sbClient.from('transactions').insert(payload);
+                    if(error) throw error;
                     if(txToSave.some(t => t.wallet === 'harian' && t.type === 'masuk')) checkAndAutoLunasHutang(); 
                     closeModal('txModal'); showToast("Proses server berhasil"); 
                 } catch(e) { showToast("Error menyimpan", "error"); console.error("Supabase Insert Error:", e); } 
@@ -830,8 +985,12 @@
         // 9. RENDER ENGINE & SEARCH
         function updateHealthEngine(filteredDb) { 
             let tIn = 0, tOut = 0; filteredDb.forEach(t => { if(t.type === 'masuk') tIn += t.amount; else tOut += t.amount; }); 
-            let balance = tIn - tOut; const badge = document.getElementById('healthBadge'); const text = document.getElementById('healthText'); badge.className = 'health-badge'; 
-            if (tIn === 0 && tOut === 0) { badge.classList.add('health-netral'); text.innerText = 'Netral'; } else if (balance < 0) { badge.classList.add('health-defisit'); text.innerText = 'Defisit'; } else if (balance >= 0 && balance <= 50000) { badge.classList.add('health-kritis'); text.innerText = 'Kritis'; } else { if (tOut > (tIn * 0.8)) { badge.classList.add('health-waspada'); text.innerText = 'Waspada'; } else { badge.classList.add('health-sehat'); text.innerText = 'Sehat'; } } 
+            let balance = tIn - tOut; const badge = document.getElementById('healthBadge'); const text = document.getElementById('healthText'); 
+            badge.className = 'health-badge'; 
+            if (tIn === 0 && tOut === 0) { badge.classList.add('health-netral'); text.innerText = 'Netral'; } 
+            else if (balance < 0) { badge.classList.add('health-defisit'); text.innerText = 'Defisit'; } 
+            else if (balance >= 0 && balance <= 50000) { badge.classList.add('health-kritis'); text.innerText = 'Kritis'; } 
+            else { if (tOut > (tIn * 0.8)) { badge.classList.add('health-waspada'); text.innerText = 'Waspada'; } else { badge.classList.add('health-sehat'); text.innerText = 'Sehat'; } } 
             generateAIForecast(filteredDb); 
         }
 
@@ -842,18 +1001,34 @@
             const masukData = currentMonthData.filter(t => t.type === 'masuk'); const keluarData = currentMonthData.filter(t => t.type === 'keluar'); 
             let mIn = masukData.reduce((sum, t) => sum + t.amount, 0); let mOut = keluarData.reduce((sum, t) => sum + t.amount, 0); 
             const daysInMonth = new Date(today.getFullYear(), today.getMonth() + 1, 0).getDate(); 
-            function calculateProjection(txArray, totalAmount) { if (txArray.length === 0) return 0; if (txArray.length === 1) return totalAmount; const sorted = [...txArray].sort((a,b) => new Date(a.date) - new Date(b.date)); const firstDate = new Date(sorted[0].date).getDate(); const lastDate = new Date(sorted[sorted.length-1].date).getDate(); let spanDays = lastDate - firstDate; if (spanDays === 0) spanDays = 1; const rate = spanDays / (txArray.length - 1); const futureTxCount = Math.floor((daysInMonth - lastDate) / rate); return totalAmount + (futureTxCount * (totalAmount / txArray.length)); } 
+            
+            function calculateProjection(txArray, totalAmount) { 
+                if (txArray.length === 0) return 0; if (txArray.length === 1) return totalAmount; 
+                const sorted = [...txArray].sort((a,b) => new Date(a.date) - new Date(b.date)); 
+                const firstDate = new Date(sorted[0].date).getDate(); const lastDate = new Date(sorted[sorted.length-1].date).getDate(); 
+                let spanDays = lastDate - firstDate; if (spanDays === 0) spanDays = 1; 
+                const rate = spanDays / (txArray.length - 1); const futureTxCount = Math.floor((daysInMonth - lastDate) / rate); 
+                return totalAmount + (futureTxCount * (totalAmount / txArray.length)); 
+            } 
             
             aiMessages = []; aiMessages.push("Info: saldo harian di isi sebelum setor tabungan karena mutasi saldo dari dompet ke tabungan."); 
             if (activeWallet === 'harian') { 
-                if (mOut > mIn && mIn > 0) { aiMessages.push("⚠️ Peringatan! Total pengeluaran harianmu telah melampaui uang masuk bulan ini."); box.style.borderLeftColor = 'var(--merah)'; box.querySelector('svg').style.color = 'var(--merah)'; } else if (mOut > 0) { let forecastOut = calculateProjection(keluarData, mOut); if (keluarData.length === 1) { aiMessages.push(`AI mencatat baru 1 pengeluaran harian (${formatRp(mOut)}). Belum ada pola terbaca.`); } else { aiMessages.push(`Membaca Pola: Proyeksi pengeluaran harianmu di akhir bulan mencapai ${formatRp(Math.round(forecastOut))}.`); } box.style.borderLeftColor = 'var(--kuning)'; box.querySelector('svg').style.color = 'var(--kuning)'; } else if (mIn > 0 && mOut === 0) { aiMessages.push("Awal yang baik! Aset harianmu bulan ini masih utuh 100%."); box.style.borderLeftColor = 'var(--hijau)'; box.querySelector('svg').style.color = 'var(--hijau)'; } 
+                if (mOut > mIn && mIn > 0) { aiMessages.push("⚠️ Peringatan! Total pengeluaran harianmu telah melampaui uang masuk bulan ini."); box.style.borderLeftColor = 'var(--merah)'; box.querySelector('svg').style.color = 'var(--merah)'; } 
+                else if (mOut > 0) { let forecastOut = calculateProjection(keluarData, mOut); if (keluarData.length === 1) { aiMessages.push(`AI mencatat baru 1 pengeluaran harian (${formatRp(mOut)}). Belum ada pola terbaca.`); } else { aiMessages.push(`Membaca Pola: Proyeksi pengeluaran harianmu di akhir bulan mencapai ${formatRp(Math.round(forecastOut))}.`); } box.style.borderLeftColor = 'var(--kuning)'; box.querySelector('svg').style.color = 'var(--kuning)'; } 
+                else if (mIn > 0 && mOut === 0) { aiMessages.push("Awal yang baik! Aset harianmu bulan ini masih utuh 100%."); box.style.borderLeftColor = 'var(--hijau)'; box.querySelector('svg').style.color = 'var(--hijau)'; } 
             } else { 
-                if (mOut > mIn && mIn > 0) { aiMessages.push("⚠️ Tabungan defisit! Penarikan danamu bulan ini menghabiskan semua yang disetor."); box.style.borderLeftColor = 'var(--merah)'; box.querySelector('svg').style.color = 'var(--merah)'; } else if (mIn > 0) { let projectedSavings = Math.round(calculateProjection(masukData, mIn) - calculateProjection(keluarData, mOut)); if (masukData.length === 1 && keluarData.length === 0) { aiMessages.push(`Kamu menyetor ${formatRp(mIn)}. Pertahankan secara rutin agar AI bisa memproyeksi.`); box.style.borderLeftColor = 'var(--hijau)'; box.querySelector('svg').style.color = 'var(--hijau)'; } else if (projectedSavings > 0) { aiMessages.push(`Berdasarkan rutinitasmu, potensi saldo tabungan di akhir bulan menembus ${formatRp(projectedSavings)}!`); box.style.borderLeftColor = 'var(--hijau)'; box.querySelector('svg').style.color = 'var(--hijau)'; } else { aiMessages.push("Waspada! Proyeksi AI membaca saldomu akan habis di akhir bulan karena tarikan yang besar."); box.style.borderLeftColor = 'var(--kuning)'; box.querySelector('svg').style.color = 'var(--kuning)'; } } else if (mIn === 0 && mOut === 0) { aiMessages.push("Brankas tabunganmu belum ada aktivitas bulan ini. Yuk, mulai disetor!"); box.style.borderLeftColor = 'var(--biru)'; box.querySelector('svg').style.color = 'var(--biru)'; } 
+                if (mOut > mIn && mIn > 0) { aiMessages.push("⚠️ Tabungan defisit! Penarikan danamu bulan ini menghabiskan semua yang disetor."); box.style.borderLeftColor = 'var(--merah)'; box.querySelector('svg').style.color = 'var(--merah)'; } 
+                else if (mIn > 0) { let projectedSavings = Math.round(calculateProjection(masukData, mIn) - calculateProjection(keluarData, mOut)); if (masukData.length === 1 && keluarData.length === 0) { aiMessages.push(`Kamu menyetor ${formatRp(mIn)}. Pertahankan secara rutin agar AI bisa memproyeksi.`); box.style.borderLeftColor = 'var(--hijau)'; box.querySelector('svg').style.color = 'var(--hijau)'; } else if (projectedSavings > 0) { aiMessages.push(`Berdasarkan rutinitasmu, potensi saldo tabungan di akhir bulan menembus ${formatRp(projectedSavings)}!`); box.style.borderLeftColor = 'var(--hijau)'; box.querySelector('svg').style.color = 'var(--hijau)'; } else { aiMessages.push("Waspada! Proyeksi AI membaca saldomu akan habis di akhir bulan karena tarikan yang besar."); box.style.borderLeftColor = 'var(--kuning)'; box.querySelector('svg').style.color = 'var(--kuning)'; } } 
+                else if (mIn === 0 && mOut === 0) { aiMessages.push("Brankas tabunganmu belum ada aktivitas bulan ini. Yuk, mulai disetor!"); box.style.borderLeftColor = 'var(--biru)'; box.querySelector('svg').style.color = 'var(--biru)'; } 
             } 
             if (aiMessages.length > 0) { box.style.display = 'flex'; startAICarousel(textEl); } else { box.style.display = 'none'; } 
         }
         
-        function startAICarousel(textEl) { if (aiCarouselInterval) clearInterval(aiCarouselInterval); aiCurrentMsgIdx = 0; textEl.innerText = aiMessages[0]; textEl.classList.remove('fade-out'); if (aiMessages.length > 1) { aiCarouselInterval = setInterval(() => { textEl.classList.add('fade-out'); setTimeout(() => { aiCurrentMsgIdx = (aiCurrentMsgIdx + 1) % aiMessages.length; textEl.innerText = aiMessages[aiCurrentMsgIdx]; textEl.classList.remove('fade-out'); }, 400); }, 10000); } }
+        function startAICarousel(textEl) { 
+            if (aiCarouselInterval) clearInterval(aiCarouselInterval); 
+            aiCurrentMsgIdx = 0; textEl.innerText = aiMessages[0]; textEl.classList.remove('fade-out'); 
+            if (aiMessages.length > 1) { aiCarouselInterval = setInterval(() => { textEl.classList.add('fade-out'); setTimeout(() => { aiCurrentMsgIdx = (aiCurrentMsgIdx + 1) % aiMessages.length; textEl.innerText = aiMessages[aiCurrentMsgIdx]; textEl.classList.remove('fade-out'); }, 400); }, 10000); } 
+        }
 
         function openReceipt(txId) { 
             const strTxId = String(txId); const tx = db.find(t => String(t.id) === strTxId || String(t.date) === strTxId); if(!tx) return; 
@@ -902,7 +1077,9 @@
             if(data.length === 0) { t.innerHTML = `<tr><td colspan="4" style="text-align:center; padding: 30px; color:var(--text-muted);">Tidak ada transaksi pada rentang waktu ini.</td></tr>`; return; }
             
             [...data].sort((a,b) => new Date(b.date) - new Date(a.date)).forEach(tx => {
-                const iM = tx.type === 'masuk'; let c = getDynamicColor(tx.category, tx.type);
+                const iM = tx.type === 'masuk'; 
+                let c = getDynamicColor(tx.category, tx.type);
+                
                 let dr = `<span style="font-weight:700;">${tx.desc}</span>`;
                 if(tx.status === 'dipinjam') dr = `<span style="font-weight:700; color:#a855f7;">${tx.desc}</span><br><span style="font-size:11px; color:var(--text-muted);">Dipinjamkan ke: <b style="color:var(--kuning);">${tx.borrower}</b></span>`;
                 else if (tx.status === 'lunas_pinjaman' && tx.borrower) dr = `<span style="font-weight:700; color:var(--hijau);">${tx.desc}</span><br><span style="font-size:11px; color:var(--text-muted);">Peminjam: <b style="color:var(--putih);">${tx.borrower}</b></span>`;
@@ -920,18 +1097,43 @@
         function renderCharts(data) {
             Chart.defaults.color = '#64748b'; Chart.defaults.font.family = 'Inter';
             
-            const cA = {}; data.forEach(t => { const k = `${t.category}`; if(cA[k]) { cA[k].a += t.amount; } else { cA[k] = { a: t.amount, color: getDynamicColor(t.category, t.type) }; } }); const pL = Object.keys(cA);
-            if(pieChart) pieChart.destroy(); pieChart = new Chart(document.getElementById('pieChart'), { type: 'doughnut', data: { labels: pL, datasets: [{ data: pL.map(l => cA[l].a), backgroundColor: pL.map(l => cA[l].color), borderWidth: 4, borderColor: '#050814' }] }, options: { responsive: true, maintainAspectRatio: false, plugins: { legend: { display: false }, tooltip: { callbacks: { label: function(c) { return ' ' + formatRp(c.raw); } } } } } });
+            const cA = {}; 
+            data.forEach(t => { 
+                const k = `${t.category}`; 
+                if(cA[k]) { cA[k].a += t.amount; } 
+                else { cA[k] = { a: t.amount, color: getDynamicColor(t.category, t.type) }; }
+            }); 
+            const pL = Object.keys(cA);
+            
+            if(pieChart) pieChart.destroy();
+            pieChart = new Chart(document.getElementById('pieChart'), { 
+                type: 'doughnut', 
+                data: { labels: pL, datasets: [{ data: pL.map(l => cA[l].a), backgroundColor: pL.map(l => cA[l].color), borderWidth: 4, borderColor: '#050814' }] }, 
+                options: { responsive: true, maintainAspectRatio: false, plugins: { legend: { display: false }, tooltip: { callbacks: { label: function(c) { return ' ' + formatRp(c.raw); } } } } } 
+            });
 
             const rT = [...data].sort((a,b) => new Date(a.date) - new Date(b.date)).slice(-15);
-            if(barChart) barChart.destroy(); barChart = new Chart(document.getElementById('barChart'), { type: 'bar', data: { labels: rT.map(t => t.desc.substring(0,8)), datasets: [{ data: rT.map(t => t.type === 'masuk' ? t.amount : -t.amount), backgroundColor: rT.map(t => getDynamicColor(t.category, t.type)), borderRadius: 4 }] }, options: { responsive: true, maintainAspectRatio: false, plugins: { legend: { display: false }, tooltip: { callbacks: { label: function(c) { return ' ' + formatRp(Math.abs(c.raw)); } } } }, scales: { x: { display: false }, y: { grid: { color: '#1e293b' } } } } });
+            if(barChart) barChart.destroy();
+            barChart = new Chart(document.getElementById('barChart'), { 
+                type: 'bar', 
+                data: { labels: rT.map(t => t.desc.substring(0,8)), datasets: [{ data: rT.map(t => t.type === 'masuk' ? t.amount : -t.amount), backgroundColor: rT.map(t => getDynamicColor(t.category, t.type)), borderRadius: 4 }] }, 
+                options: { responsive: true, maintainAspectRatio: false, plugins: { legend: { display: false }, tooltip: { callbacks: { label: function(c) { return ' ' + formatRp(Math.abs(c.raw)); } } } }, scales: { x: { display: false }, y: { grid: { color: '#1e293b' } } } } 
+            });
 
-            let cI = 0, cO = 0, hI = [], hO = []; [...data].sort((a,b)=> new Date(a.date)-new Date(b.date)).forEach(t => { if(t.type === 'masuk') cI += t.amount; else cO += t.amount; hI.push(cI); hO.push(cO); });
-            if(lineChart) lineChart.destroy(); lineChart = new Chart(document.getElementById('lineChart'), { type: 'line', data: { labels: hI.map((_,i)=> `T${i+1}`), datasets: [{ label: 'Pemasukan Total', data: hI, borderColor: '#3b82f6', backgroundColor: 'rgba(59, 130, 246, 0.1)', fill: true, pointRadius: 3, tension: 0.3 }, { label: 'Pengeluaran Total', data: hO, borderColor: '#ef4444', backgroundColor: 'rgba(239, 68, 68, 0.1)', fill: true, pointRadius: 3, tension: 0.3 }] }, options: { responsive: true, maintainAspectRatio: false, plugins: { legend: { display: false }, tooltip: { callbacks: { label: function(c) { return ' ' + formatRp(c.raw); } } } }, scales: { x: { display: false }, y: { grid: { color: '#1e293b' } } } } });
+            let cI = 0, cO = 0, hI = [], hO = [];
+            [...data].sort((a,b)=> new Date(a.date)-new Date(b.date)).forEach(t => { 
+                if(t.type === 'masuk') cI += t.amount; else cO += t.amount; 
+                hI.push(cI); hO.push(cO); 
+            });
+            if(lineChart) lineChart.destroy();
+            lineChart = new Chart(document.getElementById('lineChart'), { 
+                type: 'line', 
+                data: { labels: hI.map((_,i)=> `T${i+1}`), datasets: [{ label: 'Pemasukan Total', data: hI, borderColor: '#3b82f6', backgroundColor: 'rgba(59, 130, 246, 0.1)', fill: true, pointRadius: 3, tension: 0.3 }, { label: 'Pengeluaran Total', data: hO, borderColor: '#ef4444', backgroundColor: 'rgba(239, 68, 68, 0.1)', fill: true, pointRadius: 3, tension: 0.3 }] }, 
+                options: { responsive: true, maintainAspectRatio: false, plugins: { legend: { display: false }, tooltip: { callbacks: { label: function(c) { return ' ' + formatRp(c.raw); } } } }, scales: { x: { display: false }, y: { grid: { color: '#1e293b' } } } } 
+            });
         }
 
-        // INITIALIZATION
-        initAppHeader();
+        // INIT SAAT HALAMAN DIMUAT
         renderShortcuts(); 
         updateUI();
     </script>
