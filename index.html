@@ -8,7 +8,7 @@
     <meta http-equiv="Pragma" content="no-cache">
     <meta http-equiv="Expires" content="0">
     
-    <title>Enterprise Finance Dashboard v17.5 (Super Fix)</title>
+    <title>Enterprise Finance Dashboard v17.6 (Aggressive Offline Fix)</title>
     <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800;900&display=swap" rel="stylesheet">
     
     <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
@@ -27,7 +27,6 @@
             font-family: 'Inter', sans-serif; background-color: var(--navy); color: var(--putih);
             margin: 0; padding: 20px; line-height: 1.5; touch-action: manipulation; overflow-x: hidden;
             box-sizing: border-box;
-            /* FIX 1: Mematikan Pull-to-Refresh di Chrome/Android agar tidak ter-refresh saat ditarik ke atas */
             overscroll-behavior-y: none; 
         }
 
@@ -104,7 +103,6 @@
         
         /* FILTER WAKTU & INSIGHT AI ROW */
         .filter-insight-row { display: flex; gap: 10px; width: 100%; margin-bottom: 25px; align-items: stretch; height: 90px; }
-        /* FIX 2: Lebar filter dikurangi drastis jadi 95px agar area insight lebih lega */
         .time-filter-wrapper { width: 95px; margin-bottom: 0; flex-shrink: 0; position: relative; height: 100%; }
         .time-filter-wrapper .custom-select-trigger { padding: 0 8px; font-size: 10px; font-weight: 800; background: var(--hitam-card); height: 100%; text-align: left; }
         
@@ -119,18 +117,22 @@
         .expand-container { display: flex; gap: 10px; width: 100%; margin-bottom: 15px; transition: all 0.5s cubic-bezier(0.25, 1, 0.5, 1); }
         .expand-container:has(.expanded) { gap: 0; }
         
-        .expand-item { flex: 1 1 0; min-width: 0; max-width: 100%; background: var(--hitam-card); border: 1px solid var(--border); border-radius: 16px; padding: 20px 15px; position: relative; cursor: pointer; transition: all 0.5s cubic-bezier(0.25, 1, 0.5, 1); overflow: hidden; display: flex; flex-direction: column; box-sizing: border-box; }
+        /* FIX FONT OVERFLOW (Rp 640. terpotong) */
+        .expand-item { flex: 1 1 0; min-width: 0; max-width: 100%; background: var(--hitam-card); border: 1px solid var(--border); border-radius: 16px; padding: 15px 10px; position: relative; cursor: pointer; transition: all 0.5s cubic-bezier(0.25, 1, 0.5, 1); overflow: hidden; display: flex; flex-direction: column; box-sizing: border-box; }
         .expand-item.expanded { flex: 1 1 100%; align-items: center; justify-content: center; text-align: center; }
         .expand-item.expanded .card-label { font-size: 14px; margin-bottom: 10px; }
-        .expand-item.expanded .card-value { font-size: 40px; }
+        
+        /* Penyesuaian ukuran font agar tidak terpotong ke bawah */
+        .card-label { font-size: 10px; font-weight: 800; color: var(--text-muted); text-transform: uppercase; margin-bottom: 5px; white-space: nowrap; transition: all 0.3s;}
+        .card-value { font-size: 17px; font-weight: 900; margin: 0; letter-spacing: -0.5px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; width: 100%; transition: all 0.3s;}
+        .expand-item.expanded .card-value { font-size: 28px; white-space: normal; word-break: break-word; }
+        
         .expand-item.collapsed { flex: 0 0 0%; border: none; padding: 0; margin: 0; opacity: 0; pointer-events: none; }
         
         .btn-close-expand { position: absolute; top: 12px; right: 12px; background: rgba(239, 68, 68, 0.15); border: 1px solid rgba(239, 68, 68, 0.4); backdrop-filter: blur(8px); -webkit-backdrop-filter: blur(8px); color: var(--merah); width: 34px; height: 34px; border-radius: 50%; font-weight: 900; font-size: 14px; display: none; align-items: center; justify-content: center; cursor: pointer; z-index: 50; }
         .btn-close-expand:active { transform: scale(0.9); }
         .expand-item.expanded .btn-close-expand { display: flex; }
 
-        .card-label { font-size: 11px; font-weight: 800; color: var(--text-muted); text-transform: uppercase; margin-bottom: 5px; white-space: nowrap; transition: all 0.3s;}
-        .card-value { font-size: 24px; font-weight: 900; margin: 0; letter-spacing: -1px; white-space: nowrap; transition: all 0.3s;}
         .chart-box { height: 200px; width: 100%; transition: height 0.5s cubic-bezier(0.25, 1, 0.5, 1); position: relative; min-height: 200px; }
         .expand-item.expanded .chart-box { height: 350px; min-height: 350px; }
 
@@ -614,17 +616,26 @@
         </div>
     </div>
     <script>
-        // --- 0. AUTO-REFRESH ENGINE (GITHUB CACHE BUSTER) ---
+        // --- 0. AUTO-REFRESH & AGGRESSIVE OFFLINE DETECTOR ---
         let lastBackgroundTime = 0;
         document.addEventListener("visibilitychange", () => {
             if (document.visibilityState === 'hidden') {
                 lastBackgroundTime = Date.now();
             } else if (document.visibilityState === 'visible') {
-                // Jika aplikasi ditinggal di background lebih dari 3 menit (180.000 ms) dan HP online
+                // AGGRESSIVE OFFLINE DETECTOR: Paksa cek jaringan saat aplikasi kembali dibuka
+                const netStatus = document.getElementById('networkStatus');
+                if (!navigator.onLine) {
+                    if(netStatus) { netStatus.innerText = "Offline Mode (Lokal)"; netStatus.className = "status-sync sync-offline"; }
+                    db = loadLocalDB();
+                    if(typeof updateUI === 'function') updateUI(document.getElementById('searchTxInput') ? document.getElementById('searchTxInput').value : '');
+                } else if (currentUser) {
+                    if(netStatus) { netStatus.innerText = "Online Mode (Cloud)"; netStatus.className = "status-sync sync-online"; }
+                }
+
+                // AUTO-REFRESH (CACHE BUSTER): Jika lebih dari 3 menit (180.000 ms) di background dan online
                 if (lastBackgroundTime > 0 && (Date.now() - lastBackgroundTime > 180000) && navigator.onLine) {
                     showToast("Mengecek versi terbaru...", "success");
                     setTimeout(() => {
-                        // Memaksa browser mengambil versi terbaru dari server, bukan dari cache
                         window.location.replace(window.location.pathname + '?v=' + Date.now());
                     }, 800);
                 }
@@ -741,7 +752,7 @@
             uang: `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="2" y="6" width="20" height="12" rx="2"/><circle cx="12" cy="12" r="2"/><path d="M6 12h.01M18 12h.01"/></svg>`,
             atm: `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="2" y="4" width="20" height="16" rx="2"/><path d="M6 8h12M6 12h2M10 12h2M14 12h2M6 16h6"/></svg>`,
             plus: `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="12" y1="5" x2="12" y2="19"></line><line x1="5" y1="12" x2="19" y2="12"></line></svg>`,
-            pinjam: `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M17 3v3m-4-3v3M7 3v3m14 8H3m18 4H3m2-14h14a2 2 0 0 1 2 2v14a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V7a2 2 0 0 1 2-2z"/></svg>`,
+            pinjam: `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M17 3v3m-4-3v3M7 3v3m14 8H3m18 4H3m2-14h14a2 2 0 0 1 2 2v14a2 2 0 0 1-2-2H5a2 2 0 0 1-2-2V7a2 2 0 0 1 2-2z"/></svg>`,
             check: `<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"></polyline></svg>`
         };
         const categories = { masuk: ['Gaji', 'Top-Up', 'Bonus', 'Usaha'], keluar: ['Makan', 'Transport', 'Belanja', 'Tagihan'] };
@@ -775,7 +786,7 @@
         function openResetTxPinModal() { closeModal('txPinModal'); if (!profile.pin) { showToast("Buat PIN Profil utama dulu.", "error"); return; } const input = document.getElementById('inputResetTxAuthPin'); input.value = ''; document.getElementById('resetTxPinAuthModal').classList.add('active'); setTimeout(() => input.focus(), 300); }
         async function executeResetTxPin() { const pin = document.getElementById('inputResetTxAuthPin').value; const hashedPin = await hashPIN(pin); if (hashedPin === profile.pin) { profile.txPin = ''; saveProfileLocal(); await saveProfileToSupabase(); showToast("Sandi Direset!"); closeModal('resetTxPinAuthModal'); promptTxPin(pendingTxCallback); } else { showToast("PIN Salah!", "error"); } }
 
-        // 5. AUTH & REALTIME SYNC ENGINE (FIX OFFLINE CRASH & GANTI AKUN)
+        // 5. AUTH & REALTIME SYNC ENGINE
         function initAppHeader() { document.getElementById('headName').innerText = profile.name; document.getElementById('headGender').innerText = profile.gender; document.getElementById('headProfileImg').src = profile.photo; }
         
         async function fetchUserTransactions() {
@@ -803,7 +814,9 @@
         }
 
         window.addEventListener('online', async () => { 
-            document.getElementById('networkStatus').innerText = "Online Mode (Cloud)"; document.getElementById('networkStatus').className = "status-sync sync-online"; 
+            const netStatus = document.getElementById('networkStatus');
+            if(netStatus) { netStatus.innerText = "Online Mode (Cloud)"; netStatus.className = "status-sync sync-online"; }
+            
             if (currentUser) { 
                 let lDb = loadLocalDB(); let unsynced = lDb.filter(t => !t.user_id || typeof t.id === 'number'); 
                 if(unsynced.length > 0) { 
@@ -820,22 +833,22 @@
         });
         
         window.addEventListener('offline', () => { 
-            document.getElementById('networkStatus').innerText = "Offline Mode (Lokal)"; 
-            document.getElementById('networkStatus').className = "status-sync sync-offline"; 
+            const netStatus = document.getElementById('networkStatus');
+            if(netStatus) { netStatus.innerText = "Offline Mode (Lokal)"; netStatus.className = "status-sync sync-offline"; }
             db = loadLocalDB();
-            if(typeof updateUI === 'function') updateUI(document.getElementById('searchTxInput').value);
+            if(typeof updateUI === 'function') updateUI(document.getElementById('searchTxInput') ? document.getElementById('searchTxInput').value : '');
         });
 
         sbClient.auth.onAuthStateChange(async (event, session) => {
-            // FIX LOGOUT STUCK: Hancurkan semua data secara brutal
+            // FIX LOGOUT STUCK: Hancurkan memori dan berikan cache buster
             if (event === 'SIGNED_OUT') {
                 currentUser = null;
                 localStorage.clear(); 
-                sessionStorage.clear(); // Hapus memori sementara juga
+                sessionStorage.clear();
                 db = [];
                 profile = defaultProfile;
                 
-                // Paksa halaman reload tanpa cache sama sekali
+                // Menimpa history secara brutal agar tidak nyangkut cache session
                 setTimeout(() => {
                     window.location.replace(window.location.pathname + '?clear=' + Date.now());
                 }, 400); 
@@ -843,7 +856,12 @@
             }
 
             if (session && session.user) {
-                currentUser = session.user; document.getElementById('networkStatus').innerText = navigator.onLine ? "Online Mode (Cloud)" : "Offline Mode (Lokal)"; document.getElementById('networkStatus').className = navigator.onLine ? "status-sync sync-online" : "status-sync sync-offline"; 
+                currentUser = session.user; 
+                const netStatus = document.getElementById('networkStatus');
+                if(netStatus) {
+                    netStatus.innerText = navigator.onLine ? "Online Mode (Cloud)" : "Offline Mode (Lokal)"; 
+                    netStatus.className = navigator.onLine ? "status-sync sync-online" : "status-sync sync-offline"; 
+                }
                 
                 try {
                     const { data: profileData } = await sbClient.from('profiles').select('data').eq('id', currentUser.id).single();
@@ -853,17 +871,22 @@
                 
                 profile.googleLinked = true; profile.googleEmail = currentUser.email; saveProfileLocal(); initAppHeader(); fetchUserTransactions(); setupRealtime();
             } else {
-                currentUser = null; document.getElementById('networkStatus').innerText = "Offline Mode (Lokal)"; document.getElementById('networkStatus').className = "status-sync sync-offline"; 
+                currentUser = null; 
+                const netStatus = document.getElementById('networkStatus');
+                if(netStatus) {
+                    netStatus.innerText = "Offline Mode (Lokal)"; 
+                    netStatus.className = "status-sync sync-offline"; 
+                }
                 if (realTimeSubscription) { sbClient.removeChannel(realTimeSubscription); }
-                db = loadLocalDB(); if(typeof updateUI === 'function') updateUI(document.getElementById('searchTxInput').value);
+                db = loadLocalDB(); if(typeof updateUI === 'function') updateUI(document.getElementById('searchTxInput') ? document.getElementById('searchTxInput').value : '');
             }
         });
 
         document.getElementById('btnRealGoogleLogin').addEventListener('click', async () => { const { error } = await sbClient.auth.signInWithOAuth({ provider: 'google', options: { redirectTo: window.location.origin + window.location.pathname } }); if (error) showToast("Gagal Login", "error"); else closeModal('googleAuthModal'); });
         // 6. INTERAKSI UI DOM
-        function switchWallet(type) { activeWallet = type; document.getElementById('walletSwitchContainer').setAttribute('data-active', type); renderShortcuts(); updateUI(document.getElementById('searchTxInput').value); }
+        function switchWallet(type) { activeWallet = type; document.getElementById('walletSwitchContainer').setAttribute('data-active', type); renderShortcuts(); updateUI(document.getElementById('searchTxInput') ? document.getElementById('searchTxInput').value : ''); }
         function toggleCustomSelect(id) { const box = document.getElementById(id); const isOpen = box.classList.contains('open'); document.querySelectorAll('.custom-options.open').forEach(el => el.classList.remove('open')); if(!isOpen) box.classList.add('open'); }
-        function applyTimeFilter(days, labelText) { currentTimeFilter = days; document.getElementById('dispTimeFilter').innerText = labelText; closeModal(''); updateUI(document.getElementById('searchTxInput').value); }
+        function applyTimeFilter(days, labelText) { currentTimeFilter = days; document.getElementById('dispTimeFilter').innerText = labelText; closeModal(''); updateUI(document.getElementById('searchTxInput') ? document.getElementById('searchTxInput').value : ''); }
         function selectGender(val) { document.getElementById('editGender').value = val; document.getElementById('dispGenderVal').innerText = val; closeModal(''); }
         function selectCategory(val) { document.getElementById('tx-category').value = val; document.getElementById('dispTxCat').innerText = val; closeModal(''); }
         function toggleSection(sec, icn) { document.getElementById(sec).classList.toggle('hidden'); document.getElementById(icn).classList.toggle('rotated'); }
@@ -921,7 +944,7 @@
                 }
                 showToast("Database musnah.", "success"); 
             } catch (e) { showToast("Gagal reset di server.", "error"); } 
-            closeModal('resetConfirmModal'); updateUI(document.getElementById('searchTxInput').value); 
+            closeModal('resetConfirmModal'); updateUI(document.getElementById('searchTxInput') ? document.getElementById('searchTxInput').value : ''); 
         }
         
         // 8. INPUT TRANSAKSI LOGIC
@@ -957,7 +980,7 @@
                             lData.id = Date.now(); 
                             db.push(lData); 
                             saveLocalDB(db); 
-                            updateUI(document.getElementById('searchTxInput').value); 
+                            updateUI(document.getElementById('searchTxInput') ? document.getElementById('searchTxInput').value : ''); 
                         } 
                         showToast(`Pinjaman Lunas`, "success"); 
                     }); 
@@ -1049,7 +1072,7 @@
                 txToSave.forEach(t => { t.id = Date.now() + Math.floor(Math.random() * 1000); db.push(t); }); 
                 saveLocalDB(db); closeModal('txModal'); 
                 if(txToSave.some(t => t.wallet === 'harian' && t.type === 'masuk')) checkAndAutoLunasHutang(); 
-                updateUI(document.getElementById('searchTxInput').value); 
+                updateUI(document.getElementById('searchTxInput') ? document.getElementById('searchTxInput').value : ''); 
                 showToast(txToSave.length > 1 ? "Tracker Transparan (Offline)" : "Disimpan Lokal"); 
             } 
             document.getElementById('tx-is-saving').value = 'false'; 
@@ -1067,7 +1090,7 @@
             const textEl = document.getElementById('aiInsightText'); 
             aiMessages = []; 
             
-            // FIX: Kotak AI tidak disembunyikan meski data kosong
+            // FIX: Kotak AI tidak disembunyikan meski data kosong, berikan pesan default
             if (data.length === 0) { 
                 aiMessages.push("Belum ada data transaksi. Ayo mulai catat aktivitas keuanganmu!");
                 aiMessages.push("Info: Hubungkan dengan Google agar datamu tersimpan aman di Cloud.");
@@ -1100,6 +1123,7 @@
             } 
             aiMessages.push(statusMsg); aiMessages.push(projectionMsg); aiMessages.push(biggestExpenseMsg); aiMessages.push(loginMsg); 
             
+            // Filter array agar unik dan tidak kosong, lalu jalankan animasi
             aiMessages = [...new Set(aiMessages)].filter(m => m !== "");
             startAICarousel(textEl); 
         }
@@ -1184,10 +1208,11 @@
         }
 
         function renderCharts(data) {
-            // FIX: Cek ekstensi chart, cegah crash di mode offline
+            // FIX: Perlindungan dari crash saat Offline Mode
             if (!document.getElementById('pieChart')) return; 
             Chart.defaults.color = '#64748b'; Chart.defaults.font.family = 'Inter';
             
+            // Render kosong tanpa error jika tidak ada data
             if(data.length === 0) {
                 if(pieChart) pieChart.destroy();
                 if(barChart) barChart.destroy();
