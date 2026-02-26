@@ -8,14 +8,9 @@
     <meta http-equiv="Pragma" content="no-cache">
     <meta http-equiv="Expires" content="0">
     
-    <title>Enterprise Finance Dashboard v18.5 (Smart Num Fix)</title>
+    <title>Enterprise Finance Dashboard v18.6 (Ultimate Anti-Freeze)</title>
     <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800;900&display=swap" rel="stylesheet">
     
-    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
-    <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
-    <script src="https://cdnjs.cloudflare.com/ajax/libs/crypto-js/4.1.1/crypto-js.min.js"></script>
-    <script type="text/javascript" src="https://cdn.jsdelivr.net/npm/@emailjs/browser@3/dist/email.min.js"></script>
-
     <style>
         :root {
             --navy: #0a1128; --hitam: #050814; --hitam-card: #12182b; --putih: #f8fafc;
@@ -27,7 +22,7 @@
             font-family: 'Inter', sans-serif; background-color: var(--navy); color: var(--putih);
             margin: 0; padding: 20px; line-height: 1.5; touch-action: manipulation; overflow-x: hidden;
             box-sizing: border-box;
-            overscroll-behavior-y: none; /* Membunuh pull-to-refresh */
+            overscroll-behavior-y: none; /* Membunuh pull-to-refresh bawaan Android yang bikin stuck */
         }
 
         *, *::before, *::after { box-sizing: inherit; }
@@ -37,6 +32,18 @@
             padding: 0 !important; margin: -1px !important; overflow: hidden !important;
             clip: rect(0, 0, 0, 0) !important; white-space: nowrap !important; border: 0 !important;
         }
+
+        /* Loading Screen Saat Setup Cache */
+        #bootLoader {
+            position: fixed; top: 0; left: 0; width: 100vw; height: 100vh;
+            background: var(--navy); z-index: 99999; display: flex; flex-direction: column;
+            align-items: center; justify-content: center; transition: opacity 0.5s;
+        }
+        .spinner {
+            width: 40px; height: 40px; border: 4px solid rgba(59, 130, 246, 0.3);
+            border-top-color: var(--biru); border-radius: 50%; animation: spin 1s linear infinite;
+        }
+        @keyframes spin { to { transform: rotate(360deg); } }
 
         /* === PROFILE HEADER === */
         .profile-header {
@@ -123,34 +130,21 @@
         
         .card-label { font-size: 10px; font-weight: 800; color: var(--text-muted); text-transform: uppercase; margin-bottom: 5px; white-space: nowrap; transition: all 0.3s;}
         
-        /* TRIK SAKTI: MENGGUNAKAN PSEUDO ELEMENT UNTUK ANGKA */
+        /* TRIK PSEUDO ELEMENT UNTUK ANGKA */
         .card-value { 
             font-size: clamp(14px, 4vw, 18px); 
             font-weight: 900; 
             margin: 0; 
             letter-spacing: -0.5px; 
-            white-space: nowrap; /* Wajib 1 baris saat kecil */
+            white-space: nowrap; 
             overflow: hidden;    
             text-overflow: ellipsis;
             width: 100%; 
             transition: all 0.3s;
         }
-        
-        /* Menampilkan data-short (Rp 11.178...) saat normal */
-        .card-value::after {
-            content: attr(data-short);
-        }
-
-        .expand-item.expanded .card-value { 
-            font-size: 26px; 
-            white-space: normal; /* Boleh turun ke bawah saat dibesarkan */
-            word-break: break-word; 
-        }
-
-        /* Menampilkan data-full (Rp 11.178.000) saat di-klik/dibesarkan */
-        .expand-item.expanded .card-value::after {
-            content: attr(data-full);
-        }
+        .card-value::after { content: attr(data-short); }
+        .expand-item.expanded .card-value { font-size: 26px; white-space: normal; word-break: break-word; }
+        .expand-item.expanded .card-value::after { content: attr(data-full); }
         
         .expand-item.collapsed { flex: 0 0 0%; border: none; padding: 0; margin: 0; opacity: 0; pointer-events: none; }
         
@@ -257,9 +251,13 @@
     </style>
 </head>
 <body>
+    
+    <div id="bootLoader">
+        <div class="spinner"></div>
+        <p style="font-size: 12px; font-weight: 800; color: var(--text-muted); margin-top: 20px; letter-spacing: 1px;">MEMUAT SISTEM...</p>
+    </div>
 
     <div id="toastBox" class="toast-container"></div>
-
     <div class="profile-header" onclick="openProfileView()">
         <div class="profile-info">
             <div class="profile-pic-container"><img src="" id="headProfileImg" class="profile-pic"></div>
@@ -642,9 +640,81 @@
         </div>
     </div>
     <script>
-        // --- 0. PENANGANAN OFFLINE/ONLINE (ANTI-STUCK & ANTI-FREEZE) ---
-        // Kita buang semua 'window.location.replace' agar tidak pernah nyangkut saat offline
+        // ==========================================
+        // 0. SMART CACHER (ANTI-FREEZE CDN SYSTEM)
+        // ==========================================
+        // Daftar CDN yang sebelumnya ada di tag <head>, kita pindah ke sini
+        const cdnList = [
+            { id: 'cdn_chartjs', url: 'https://cdn.jsdelivr.net/npm/chart.js' },
+            { id: 'cdn_supabase', url: 'https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2' },
+            { id: 'cdn_crypto', url: 'https://cdnjs.cloudflare.com/ajax/libs/crypto-js/4.1.1/crypto-js.min.js' },
+            { id: 'cdn_emailjs', url: 'https://cdn.jsdelivr.net/npm/@emailjs/browser@3/dist/email.min.js' }
+        ];
+
+        async function initSmartCache() {
+            for (let cdn of cdnList) {
+                // Cari apakah script sudah tersimpan di HP?
+                let scriptContent = localStorage.getItem(cdn.id);
+                
+                // Kalau internet nyala, curi-curi update scriptnya biar selalu versi terbaru
+                if (navigator.onLine) {
+                    try {
+                        const res = await fetch(cdn.url);
+                        if (res.ok) {
+                            scriptContent = await res.text();
+                            localStorage.setItem(cdn.id, scriptContent); // Simpan permanen ke HP
+                        }
+                    } catch (e) { console.warn("Fetch gagal, pakai cache offline untuk:", cdn.id); }
+                }
+
+                // Suntikkan script ke aplikasi
+                if (scriptContent) {
+                    const scriptTag = document.createElement('script');
+                    scriptTag.text = scriptContent;
+                    document.head.appendChild(scriptTag);
+                } else {
+                    console.error("Gagal load CDN (kosong di cache):", cdn.id);
+                }
+            }
+
+            // Matikan Layar Loading dan Nyalakan Mesin Utama
+            const loader = document.getElementById('bootLoader');
+            if (loader) {
+                loader.style.opacity = '0';
+                setTimeout(() => { loader.style.display = 'none'; bootApp(); }, 500);
+            } else {
+                bootApp();
+            }
+        }
+
+        // Panggil sistem cacher saat aplikasi dibuka
+        window.addEventListener('load', initSmartCache);
+
+        // --- 1. VARIABEL GLOBAL APLIKASI ---
+        let sbClient = null;
+        let db = [];
+        let currentUser = null; 
+        let activeWallet = 'harian'; 
+        let currentTimeFilter = 365; 
+        let rawAmount = 0;
+        let pieChart, barChart, lineChart; 
+        let pendingTxCallback = null;
+        let aiMessages = []; 
+        let aiCurrentMsgIdx = 0; 
+        let aiCarouselInterval = null; 
+        let realTimeSubscription = null;
         
+        let generatedOTP = "";
+        let otpExpiryTime = 0;
+
+        const defaultProfile = { 
+            name: 'Guest', pin: '', txPin: '',
+            photo: 'data:image/svg+xml;base64,PHN2ZyB4bWxucz0iaHR0cDovL3d3dy53My5vcmcvMjAwMC9zdmciIHZpZXdCb3g9IjAgMCAyNCAyNCIgZmlsbD0iIzFlMjliYiI+PHBhdGggZD0iTTEyIDJhNSA1IDAgMSAwIDUgNSBNMTIgMTRhNyA3IDAgMCAwLTcgN3YxSDE5di0xYTcgNyAwIDAgMC03LTdaIi8+PC9zdmc+', 
+            joinDate: new Date().toISOString(), birthDate: '', gender: 'Rahasia', googleLinked: false, googleEmail: ''
+        };
+        let profile = JSON.parse(localStorage.getItem('user_profile_secure')) || defaultProfile;
+
+        // --- 2. PENANGANAN OFFLINE/ONLINE REALTIME (TANPA RELOAD) ---
         window.addEventListener('DOMContentLoaded', () => {
             document.querySelectorAll('.modal-overlay.active').forEach(el => el.classList.remove('active'));
         });
@@ -655,15 +725,14 @@
                 netStatus.innerText = currentUser ? "Online Mode (Cloud)" : "Online Mode (Guest)"; 
                 netStatus.className = "status-sync sync-online"; 
             }
-            showToast("Koneksi Pulih! Mengsinkronisasi...", "success");
-            if(typeof fetchUserTransactions === 'function') fetchUserTransactions(); 
+            showToast("Koneksi Pulih!", "success");
+            if(typeof fetchUserTransactions === 'function' && currentUser) fetchUserTransactions(); 
         });
         
         window.addEventListener('offline', () => { 
             const netStatus = document.getElementById('networkStatus');
             if(netStatus) { netStatus.innerText = "Offline Mode (Lokal)"; netStatus.className = "status-sync sync-offline"; }
-            showToast("Koneksi Terputus. Pindah ke mode lokal.", "error");
-            db = loadLocalDB();
+            showToast("Offline Mode Aktif.", "error");
             if(typeof updateUI === 'function') updateUI(document.getElementById('searchTxInput') ? document.getElementById('searchTxInput').value : '');
         });
 
@@ -672,82 +741,40 @@
                 if (!navigator.onLine) {
                     const netStatus = document.getElementById('networkStatus');
                     if(netStatus) { netStatus.innerText = "Offline Mode (Lokal)"; netStatus.className = "status-sync sync-offline"; }
-                    db = loadLocalDB();
-                    if(typeof updateUI === 'function') updateUI(document.getElementById('searchTxInput') ? document.getElementById('searchTxInput').value : '');
-                } else {
+                    if(typeof updateUI === 'function') updateUI();
+                } else if(currentUser) {
                     if(typeof fetchUserTransactions === 'function') fetchUserTransactions(); 
                 }
             }
         });
 
-        // 1. KONFIGURASI SUPABASE GLOBAL
-        const supabaseUrl = 'https://kkbfppuxuwcbapexlqsx.supabase.co';
-        const supabaseKey = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImtrYmZwcHV4dXdjYmFwZXhscXN4Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzIwMDMwODAsImV4cCI6MjA4NzU3OTA4MH0.pOGHpiR333Ltp2g3BQvV8xSMbdbMeRMHJ3ZgecHDRzM';
-        const sbClient = window.supabase.createClient(supabaseUrl, supabaseKey);
-
-        // --- 1.5 INISIALISASI EMAILJS & OTP ---
-        emailjs.init("qcqCpH81lqwQKw_MG"); 
-        let generatedOTP = "";
-        let otpExpiryTime = 0;
-
-        function startOTPResetProcess() {
-            closeModal('pinAuthModal'); closeModal('resetPinModal'); closeModal('resetTxPinAuthModal');
-            if (!currentUser || !profile.googleEmail) { showToast("Akun belum terhubung Google!", "error"); return; }
-            document.getElementById('displayUserEmail').innerText = profile.googleEmail;
-            document.getElementById('otpRequestModal').classList.add('active');
-        }
-
-        function sendOTPEmail() {
-            const btn = document.getElementById('btnSendOTP');
-            btn.innerText = "Mengirim..."; btn.disabled = true;
-            generatedOTP = Math.floor(100000 + Math.random() * 900000).toString();
-            otpExpiryTime = Date.now() + (5 * 60 * 1000); 
-
-            emailjs.send('service_asdfwc2', 'template_9w9z5pl', { to_email: profile.googleEmail, otp_code: generatedOTP })
-                .then(function() {
-                    showToast("Kode terkirim ke email!", "success"); closeModal('otpRequestModal');
-                    document.getElementById('inputOTP').value = ''; document.getElementById('inputNewPinOTP').value = '';
-                    document.getElementById('otpVerifyModal').classList.add('active');
-                    btn.innerText = "Kirim Kode Sekarang"; btn.disabled = false;
-                }, function(error) {
-                    showToast("Gagal mengirim email.", "error"); 
-                    btn.innerText = "Kirim Kode Sekarang"; btn.disabled = false;
-                });
-        }
-
-        async function verifyOTPAndSavePin() {
-            const userOTP = document.getElementById('inputOTP').value;
-            const newPin = document.getElementById('inputNewPinOTP').value;
-            if (Date.now() > otpExpiryTime) { showToast("Kode OTP kedaluwarsa!", "error"); return; }
-            if (userOTP !== generatedOTP) { showToast("Kode OTP Salah!", "error"); return; }
-            if (newPin.length < 4) { showToast("PIN Baru min 4 digit!", "error"); return; }
-
-            profile.pin = await hashPIN(newPin); 
-            saveProfileLocal();
-            generatedOTP = ""; 
-            closeModal('otpVerifyModal'); showToast("PIN Berhasil Direset!", "success");
-            document.getElementById('inputOTP').value = ''; document.getElementById('inputNewPinOTP').value = '';
-            saveProfileToSupabase(); 
-        }
-
-        // --- 1.6 SISTEM KEAMANAN LOKAL (ENKRIPSI AES) ---
+        // --- 3. SISTEM KEAMANAN LOKAL (ENKRIPSI AES AMAN) ---
         const SECRET_KEY = "F1n4nc3_App_S3cur3_K3y_99";
 
         function saveLocalDB(data) {
-            const ciphertext = CryptoJS.AES.encrypt(JSON.stringify(data), SECRET_KEY).toString();
-            localStorage.setItem('finance_modern_db_secure', ciphertext);
-            if(localStorage.getItem('finance_modern_db')) localStorage.removeItem('finance_modern_db');
+            if (typeof CryptoJS !== 'undefined') {
+                const ciphertext = CryptoJS.AES.encrypt(JSON.stringify(data), SECRET_KEY).toString();
+                localStorage.setItem('finance_modern_db_secure', ciphertext);
+            } else {
+                // Fallback kalau CryptoJS belum terload secara offline sempurna
+                localStorage.setItem('finance_modern_db_secure_fallback', JSON.stringify(data));
+            }
         }
 
         function loadLocalDB() {
             const ciphertext = localStorage.getItem('finance_modern_db_secure');
             if (!ciphertext) {
-                const oldData = localStorage.getItem('finance_modern_db');
-                if (oldData) { const parsed = JSON.parse(oldData); saveLocalDB(parsed); return parsed; }
+                const fallback = localStorage.getItem('finance_modern_db_secure_fallback');
+                if (fallback) return JSON.parse(fallback);
                 return [];
             }
-            try { return JSON.parse(CryptoJS.AES.decrypt(ciphertext, SECRET_KEY).toString(CryptoJS.enc.Utf8)); } 
-            catch (e) { return []; }
+            try { 
+                if (typeof CryptoJS !== 'undefined') {
+                    return JSON.parse(CryptoJS.AES.decrypt(ciphertext, SECRET_KEY).toString(CryptoJS.enc.Utf8)); 
+                } else {
+                    return []; 
+                }
+            } catch (e) { return []; }
         }
 
         async function hashPIN(pin) {
@@ -758,31 +785,19 @@
                     const hashBuffer = await crypto.subtle.digest('SHA-256', msgBuffer);
                     const hashArray = Array.from(new Uint8Array(hashBuffer));
                     return hashArray.map(b => b.toString(16).padStart(2, '0')).join('');
-                } else {
+                } else if (typeof CryptoJS !== 'undefined') {
                     return CryptoJS.SHA256(pin).toString(CryptoJS.enc.Hex);
+                } else {
+                    return btoa(pin); 
                 }
-            } catch (error) {
-                return CryptoJS.SHA256(pin).toString(CryptoJS.enc.Hex);
-            }
+            } catch (error) { return pin; }
         }
 
         function saveProfileLocal() {
             localStorage.setItem('user_profile_secure', JSON.stringify(profile));
         }
 
-        // 2. GLOBAL STATE & DATA
-        let db = loadLocalDB(); 
-        let currentUser = null; let activeWallet = 'harian'; let currentTimeFilter = 365; let rawAmount = 0;
-        let pieChart, barChart, lineChart; let pendingTxCallback = null;
-        let aiMessages = []; let aiCurrentMsgIdx = 0; let aiCarouselInterval = null; let realTimeSubscription = null;
-
-        const defaultProfile = { 
-            name: 'Guest', pin: '', txPin: '',
-            photo: 'data:image/svg+xml;base64,PHN2ZyB4bWxucz0iaHR0cDovL3d3dy53My5vcmcvMjAwMC9zdmciIHZpZXdCb3g9IjAgMCAyNCAyNCIgZmlsbD0iIzFlMjliYiI+PHBhdGggZD0iTTEyIDJhNSA1IDAgMSAwIDUgNSBNMTIgMTRhNyA3IDAgMCAwLTcgN3YxSDE5di0xYTcgNyAwIDAgMC03LTdaIi8+PC9zdmc+', 
-            joinDate: new Date().toISOString(), birthDate: '', gender: 'Rahasia', googleLinked: false, googleEmail: ''
-        };
-        let profile = JSON.parse(localStorage.getItem('user_profile_secure')) || defaultProfile;
-
+        // --- 4. DATA KATEGORI & SVGS ---
         const svgs = {
             makan: `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 2v20M17 5H9.5a3.5 3.5 0 0 0 0 7h5a3.5 3.5 0 0 1 0 7H6"/></svg>`,
             transport: `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="11" width="18" height="10" rx="2"/><circle cx="7" cy="16" r="1"/><circle cx="17" cy="16" r="1"/><path d="M14 11V7a2 2 0 0 0-2-2H8a2 2 0 0 0-2 2v4"/></svg>`,
@@ -793,25 +808,12 @@
             check: `<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"></polyline></svg>`
         };
         const categories = { masuk: ['Gaji', 'Top-Up', 'Bonus', 'Usaha'], keluar: ['Makan', 'Transport', 'Belanja', 'Tagihan'] };
-
-        function getDynamicColor(categoryStr, type) {
-            if (categoryStr === 'Pindah Tabungan') return '#f59e0b';
-            if (categoryStr === 'Dari Tabungan') return '#10b981';
-            if (categoryStr === 'Dipinjam') return '#a855f7';
-            if (type === 'keluar') return '#ef4444';
-            const inColors = { 'Top-Up': '#3b82f6', 'Gaji': '#10b981', 'Bonus': '#06b6d4', 'Usaha': '#8b5cf6', 'Lunas Pinjaman': '#10b981' };
-            if (inColors[categoryStr]) return inColors[categoryStr];
-            let hash = 0; for(let i = 0; i < categoryStr.length; i++) hash = categoryStr.charCodeAt(i) + ((hash << 5) - hash);
-            return `hsl(${Math.abs(hash) % 360}, 70%, 55%)`; 
-        }
-
-        // 3. UTILITY FUNCTIONS
-        // Format standar (Full Angka)
+        // --- 5. FORMATTER & UTILITY TINGKAT LANJUT ---
         function formatRp(num) { 
             return new Intl.NumberFormat('id-ID', { style: 'currency', currency: 'IDR', minimumFractionDigits: 0 }).format(num); 
         }
 
-        // FORMAT SAKTI BARU: Merubah 3 nol paling belakang (.000) menjadi ...
+        // FORMAT SAKTI: Memotong ".000" jadi "..." khusus kotak besar
         function formatRpPendek(num) {
             let str = new Intl.NumberFormat('id-ID', { style: 'currency', currency: 'IDR', minimumFractionDigits: 0 }).format(num);
             return str.replace(/\.000$/, '...');
@@ -826,73 +828,116 @@
         function openCustomConfirm(title, desc, action) { document.getElementById('confirmTitle').innerText = title; document.getElementById('confirmDesc').innerHTML = desc; confirmAction = action; document.getElementById('confirmModal').classList.add('active'); }
         document.getElementById('btnConfirmYes').addEventListener('click', () => { if(confirmAction) confirmAction(); closeModal('confirmModal'); });
         
-        // 4. PENYIMPANAN PROFIL & SANDI TRANSAKSI
-        async function saveProfileToSupabase() { 
-            if (!currentUser || !navigator.onLine) return; 
-            try { await sbClient.from('profiles').upsert({ id: currentUser.id, data: profile }); } catch(e) {} 
+        // --- 6. MESIN UTAMA (BOOT APP) ANTI-STUCK ---
+        function bootApp() {
+            // 1. Aktifkan Supabase jika CDN berhasil termuat (dari internet/cache lokal)
+            if (typeof window.supabase !== 'undefined') {
+                const supabaseUrl = 'https://kkbfppuxuwcbapexlqsx.supabase.co';
+                const supabaseKey = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImtrYmZwcHV4dXdjYmFwZXhscXN4Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzIwMDMwODAsImV4cCI6MjA4NzU3OTA4MH0.pOGHpiR333Ltp2g3BQvV8xSMbdbMeRMHJ3ZgecHDRzM';
+                sbClient = window.supabase.createClient(supabaseUrl, supabaseKey);
+
+                sbClient.auth.onAuthStateChange(async (event, session) => {
+                    // LOGOUT INSTAN TANPA REFRESH
+                    if (event === 'SIGNED_OUT') {
+                        currentUser = null;
+                        localStorage.removeItem('user_profile_secure');
+                        localStorage.removeItem('finance_modern_db_secure');
+                        profile = { ...defaultProfile, joinDate: new Date().toISOString() };
+                        db = []; 
+                        initAppHeader();
+                        if(typeof updateUI === 'function') updateUI('');
+                        showToast("Berhasil Logout", "success");
+                        closeModal('profileViewModal');
+                        const netStatus = document.getElementById('networkStatus');
+                        if(netStatus) { netStatus.innerText = navigator.onLine ? "Online Mode (Guest)" : "Offline Mode (Lokal)"; netStatus.className = navigator.onLine ? "status-sync sync-online" : "status-sync sync-offline"; }
+                        return;
+                    }
+
+                    if (session && session.user) {
+                        currentUser = session.user; 
+                        const netStatus = document.getElementById('networkStatus');
+                        if(netStatus) { netStatus.innerText = navigator.onLine ? "Online Mode (Cloud)" : "Offline Mode (Lokal)"; netStatus.className = navigator.onLine ? "status-sync sync-online" : "status-sync sync-offline"; }
+                        
+                        try {
+                            const { data: profileData } = await sbClient.from('profiles').select('data').eq('id', currentUser.id).single();
+                            if (profileData && profileData.data) { profile = { ...profile, ...profileData.data }; } 
+                            else { 
+                                if(profile.name === 'Guest') profile.name = properTitleCase(currentUser.user_metadata?.full_name) || 'Member'; 
+                                profile.photo = currentUser.user_metadata?.avatar_url || profile.photo; 
+                                await saveProfileToSupabase(); 
+                            }
+                        } catch(e) {}
+                        
+                        profile.googleLinked = true; profile.googleEmail = currentUser.email; 
+                        saveProfileLocal(); initAppHeader(); fetchUserTransactions(); setupRealtime();
+                        closeModal('googleAuthModal');
+                    } else {
+                        currentUser = null; 
+                        const netStatus = document.getElementById('networkStatus');
+                        if(netStatus) { netStatus.innerText = navigator.onLine ? "Online Mode (Guest)" : "Offline Mode (Lokal)"; netStatus.className = navigator.onLine ? "status-sync sync-online" : "status-sync sync-offline"; }
+                        if (realTimeSubscription && sbClient) { sbClient.removeChannel(realTimeSubscription); }
+                        db = loadLocalDB(); 
+                        if(typeof updateUI === 'function') updateUI(document.getElementById('searchTxInput') ? document.getElementById('searchTxInput').value : '');
+                    }
+                });
+            } else {
+                // FALLBACK OFFLINE EKSTREM (JIKA CACHE KOSONG & TIDAK ADA INTERNET)
+                showToast("Sistem berjalan di Mode Lokal Offline", "error");
+                const netStatus = document.getElementById('networkStatus');
+                if(netStatus) { netStatus.innerText = "Offline Mode (Lokal)"; netStatus.className = "status-sync sync-offline"; }
+                db = loadLocalDB();
+            }
+
+            // 2. Aktifkan EmailJS jika tersedia
+            if (typeof window.emailjs !== 'undefined') {
+                window.emailjs.init("qcqCpH81lqwQKw_MG");
+            }
+
+            // 3. Render UI Pertama Kali
+            initAppHeader();
+            if(typeof renderShortcuts === 'function') renderShortcuts(); 
+            if(typeof updateUI === 'function') updateUI('');
         }
-        function promptTxPin(callback) { pendingTxCallback = callback; const input = document.getElementById('inputTxPin'); input.value = ''; if (!profile.txPin) { document.getElementById('txPinTitle').innerText = "Buat Sandi Transaksi"; document.getElementById('txPinDesc').innerText = "Buat sandi khusus untuk pelunasan."; document.getElementById('btnVerifyTxPin').innerText = "Simpan & Lanjut"; } else { document.getElementById('txPinTitle').innerText = "Sandi Transaksi"; document.getElementById('txPinDesc').innerText = "Masukkan sandi transaksi Anda."; document.getElementById('btnVerifyTxPin').innerText = "Konfirmasi"; } document.getElementById('txPinModal').classList.add('active'); setTimeout(() => input.focus(), 300); }
-        async function verifyTxPin() { const val = document.getElementById('inputTxPin').value; if (val.length < 4) { showToast("Sandi min 4 digit", "error"); return; } const hashedVal = await hashPIN(val); if (!profile.txPin) { profile.txPin = hashedVal; saveProfileLocal(); await saveProfileToSupabase(); showToast("Sandi Dibuat!", "success"); } else { if (hashedVal !== profile.txPin) { showToast("Sandi Salah!", "error"); return; } } closeModal('txPinModal'); if (pendingTxCallback) { pendingTxCallback(); pendingTxCallback = null; } }
-        function openResetTxPinModal() { closeModal('txPinModal'); if (!profile.pin) { showToast("Buat PIN Profil utama dulu.", "error"); return; } const input = document.getElementById('inputResetTxAuthPin'); input.value = ''; document.getElementById('resetTxPinAuthModal').classList.add('active'); setTimeout(() => input.focus(), 300); }
-        async function executeResetTxPin() { const pin = document.getElementById('inputResetTxAuthPin').value; const hashedPin = await hashPIN(pin); if (hashedPin === profile.pin) { profile.txPin = ''; saveProfileLocal(); await saveProfileToSupabase(); showToast("Sandi Direset!"); closeModal('resetTxPinAuthModal'); promptTxPin(pendingTxCallback); } else { showToast("PIN Salah!", "error"); } }
-        // 5. AUTH, REALTIME SYNC & MIGRASI GUEST (ANTI-STUCK & OFFLINE SAFE)
-        function initAppHeader() { 
-            document.getElementById('headName').innerText = profile.name; 
-            document.getElementById('headGender').innerText = profile.gender; 
-            document.getElementById('headProfileImg').src = profile.photo; 
-        }
-        
+
+        // --- 7. SINKRONISASI & DATABASE ---
         async function fetchUserTransactions() {
-            if (!currentUser) return;
+            if (!currentUser || !sbClient) return;
             try {
                 if (!navigator.onLine) throw new Error("Offline mode aktif.");
                 
                 const { data, error } = await sbClient.from('transactions').select('*').eq('user_id', currentUser.id).order('date', { ascending: true });
                 if (error) throw error;
 
-                // LOGIKA MIGRASI GUEST KE CLOUD (DIPERBAIKI AGAR TIDAK FREEZE)
                 const pendingData = localStorage.getItem('pending_guest_data');
                 if (pendingData) {
                     try {
                         const guestDb = JSON.parse(pendingData);
                         if (data.length === 0 && guestDb.length > 0) {
                             showToast("Memigrasi data ke Cloud...", "success");
-                            const payload = guestDb.map(t => { 
-                                let newData = { ...t, user_id: currentUser.id }; 
-                                if(newData.id) delete newData.id; 
-                                return newData; 
-                            });
-                            
+                            const payload = guestDb.map(t => { let newData = { ...t, user_id: currentUser.id }; if(newData.id) delete newData.id; return newData; });
                             const { error: insertErr } = await sbClient.from('transactions').insert(payload);
                             if (insertErr) throw insertErr;
                             
                             localStorage.removeItem('pending_guest_data');
-                            
                             const { data: newData } = await sbClient.from('transactions').select('*').eq('user_id', currentUser.id).order('date', { ascending: true });
                             db = newData || [];
                         } else {
                             localStorage.removeItem('pending_guest_data');
                             db = data;
                         }
-                    } catch (migrationError) {
-                        console.error("Gagal migrasi:", migrationError);
-                        db = data; 
-                    }
-                } else {
-                    db = data; 
-                }
+                    } catch (migrationError) { db = data; }
+                } else { db = data; }
 
                 saveLocalDB(db); 
                 if(typeof updateUI === 'function') updateUI(document.getElementById('searchTxInput') ? document.getElementById('searchTxInput').value : ''); 
             } catch (error) {
-                console.warn("Gagal Fetch, Pakai DB Lokal", error);
                 db = loadLocalDB(); 
                 if(typeof updateUI === 'function') updateUI(document.getElementById('searchTxInput') ? document.getElementById('searchTxInput').value : '');
             }
         }
 
         function setupRealtime() {
-            if (!currentUser) return;
+            if (!currentUser || !sbClient) return;
             if (realTimeSubscription) sbClient.removeChannel(realTimeSubscription);
             realTimeSubscription = sbClient.channel('custom-all-channel')
                 .on('postgres_changes', { event: '*', schema: 'public', table: 'transactions', filter: `user_id=eq.${currentUser.id}` }, payload => { 
@@ -900,80 +945,31 @@
                 }).subscribe();
         }
 
-        sbClient.auth.onAuthStateChange(async (event, session) => {
-            // FIX LOGOUT ULTIMATE: Hapus storage, kembalikan ke Guest, dan render angka 0 INSTAN tanpa Reload!
-            if (event === 'SIGNED_OUT') {
-                currentUser = null;
-                localStorage.removeItem('user_profile_secure');
-                localStorage.removeItem('finance_modern_db_secure');
-                
-                // Reset State ke awal seketika
-                profile = { ...defaultProfile, joinDate: new Date().toISOString() };
-                db = []; 
-                
-                initAppHeader();
-                if(typeof updateUI === 'function') updateUI('');
-                showToast("Berhasil Logout", "success");
-                closeModal('profileViewModal');
-                
-                const netStatus = document.getElementById('networkStatus');
-                if(netStatus) {
-                    netStatus.innerText = navigator.onLine ? "Online Mode (Guest)" : "Offline Mode (Lokal)"; 
-                    netStatus.className = navigator.onLine ? "status-sync sync-online" : "status-sync sync-offline"; 
-                }
-                return;
-            }
+        // --- 8. PROFIL & KEAMANAN PIN ---
+        function initAppHeader() { 
+            document.getElementById('headName').innerText = profile.name; 
+            document.getElementById('headGender').innerText = profile.gender; 
+            document.getElementById('headProfileImg').src = profile.photo; 
+        }
 
-            if (session && session.user) {
-                currentUser = session.user; 
-                const netStatus = document.getElementById('networkStatus');
-                if(netStatus) {
-                    netStatus.innerText = navigator.onLine ? "Online Mode (Cloud)" : "Offline Mode (Lokal)"; 
-                    netStatus.className = navigator.onLine ? "status-sync sync-online" : "status-sync sync-offline"; 
-                }
-                
-                try {
-                    const { data: profileData } = await sbClient.from('profiles').select('data').eq('id', currentUser.id).single();
-                    if (profileData && profileData.data) { 
-                        profile = { ...profile, ...profileData.data }; 
-                    } else { 
-                        if(profile.name === 'Guest') profile.name = properTitleCase(currentUser.user_metadata?.full_name) || 'Member'; 
-                        profile.photo = currentUser.user_metadata?.avatar_url || profile.photo; 
-                        await saveProfileToSupabase(); 
-                    }
-                } catch(e) { console.warn("Gagal load profil", e); }
-                
-                profile.googleLinked = true; 
-                profile.googleEmail = currentUser.email; 
-                saveProfileLocal(); 
-                initAppHeader(); 
-                fetchUserTransactions(); 
-                setupRealtime();
-                
-                closeModal('googleAuthModal');
-                
-            } else {
-                currentUser = null; 
-                const netStatus = document.getElementById('networkStatus');
-                if(netStatus) {
-                    netStatus.innerText = navigator.onLine ? "Online Mode (Guest)" : "Offline Mode (Lokal)"; 
-                    netStatus.className = navigator.onLine ? "status-sync sync-online" : "status-sync sync-offline"; 
-                }
-                if (realTimeSubscription) { sbClient.removeChannel(realTimeSubscription); }
-                db = loadLocalDB(); 
-                if(typeof updateUI === 'function') updateUI(document.getElementById('searchTxInput') ? document.getElementById('searchTxInput').value : '');
-            }
-        });
+        async function saveProfileToSupabase() { 
+            if (!currentUser || !navigator.onLine || !sbClient) return; 
+            try { await sbClient.from('profiles').upsert({ id: currentUser.id, data: profile }); } catch(e) {} 
+        }
+
+        function promptTxPin(callback) { pendingTxCallback = callback; const input = document.getElementById('inputTxPin'); input.value = ''; if (!profile.txPin) { document.getElementById('txPinTitle').innerText = "Buat Sandi Transaksi"; document.getElementById('txPinDesc').innerText = "Buat sandi khusus untuk pelunasan."; document.getElementById('btnVerifyTxPin').innerText = "Simpan & Lanjut"; } else { document.getElementById('txPinTitle').innerText = "Sandi Transaksi"; document.getElementById('txPinDesc').innerText = "Masukkan sandi transaksi Anda."; document.getElementById('btnVerifyTxPin').innerText = "Konfirmasi"; } document.getElementById('txPinModal').classList.add('active'); setTimeout(() => input.focus(), 300); }
+        async function verifyTxPin() { const val = document.getElementById('inputTxPin').value; if (val.length < 4) { showToast("Sandi min 4 digit", "error"); return; } const hashedVal = await hashPIN(val); if (!profile.txPin) { profile.txPin = hashedVal; saveProfileLocal(); await saveProfileToSupabase(); showToast("Sandi Dibuat!", "success"); } else { if (hashedVal !== profile.txPin) { showToast("Sandi Salah!", "error"); return; } } closeModal('txPinModal'); if (pendingTxCallback) { pendingTxCallback(); pendingTxCallback = null; } }
+        function openResetTxPinModal() { closeModal('txPinModal'); if (!profile.pin) { showToast("Buat PIN Profil utama dulu.", "error"); return; } const input = document.getElementById('inputResetTxAuthPin'); input.value = ''; document.getElementById('resetTxPinAuthModal').classList.add('active'); setTimeout(() => input.focus(), 300); }
+        async function executeResetTxPin() { const pin = document.getElementById('inputResetTxAuthPin').value; const hashedPin = await hashPIN(pin); if (hashedPin === profile.pin) { profile.txPin = ''; saveProfileLocal(); await saveProfileToSupabase(); showToast("Sandi Direset!"); closeModal('resetTxPinAuthModal'); promptTxPin(pendingTxCallback); } else { showToast("PIN Salah!", "error"); } }
 
         document.getElementById('btnRealGoogleLogin').addEventListener('click', async () => { 
-            if(!currentUser && db.length > 0) {
-                localStorage.setItem('pending_guest_data', JSON.stringify(db));
-            }
+            if(!sbClient) { showToast("Sedang Offline, tunggu sinyal!", "error"); return; }
+            if(!currentUser && db.length > 0) localStorage.setItem('pending_guest_data', JSON.stringify(db));
             const { error } = await sbClient.auth.signInWithOAuth({ provider: 'google', options: { redirectTo: window.location.origin + window.location.pathname } }); 
             if (error) showToast("Gagal Login", "error"); 
         });
 
-        // 6. INTERAKSI UI DOM
+        // Manajemen UI Sederhana DOM
         function switchWallet(type) { activeWallet = type; document.getElementById('walletSwitchContainer').setAttribute('data-active', type); renderShortcuts(); updateUI(document.getElementById('searchTxInput') ? document.getElementById('searchTxInput').value : ''); }
         function toggleCustomSelect(id) { const box = document.getElementById(id); const isOpen = box.classList.contains('open'); document.querySelectorAll('.custom-options.open').forEach(el => el.classList.remove('open')); if(!isOpen) box.classList.add('open'); }
         function applyTimeFilter(days, labelText) { currentTimeFilter = days; document.getElementById('dispTimeFilter').innerText = labelText; closeModal(''); updateUI(document.getElementById('searchTxInput') ? document.getElementById('searchTxInput').value : ''); }
@@ -992,7 +988,6 @@
             document.body.appendChild(link); link.click(); document.body.removeChild(link); showToast("CSV Berhasil Diunduh", "success"); 
         }
 
-        // 7. MANAJEMEN PROFIL & UPLOAD GAMBAR
         function openProfileView() { 
             let inT = 0, outT = 0; db.forEach(t => { if(t.type === 'masuk') inT += t.amount; else outT += t.amount; }); 
             document.getElementById('viewProfileImg').src = profile.photo; document.getElementById('viewProfileName').innerText = profile.name; document.getElementById('viewJoinDate').innerText = "Bergabung: " + formatDetailDate(profile.joinDate); document.getElementById('viewGender').innerText = profile.gender || '-'; document.getElementById('viewBirth').innerText = profile.birthDate || '-'; document.getElementById('viewTotalMasuk').innerText = formatRp(inT); document.getElementById('viewTotalKeluar').innerText = formatRp(outT); 
@@ -1000,10 +995,7 @@
             if(currentUser) { 
                 stat.innerHTML = `<span style="color:var(--hijau); font-weight:700;">${currentUser.email}</span>`; btnText.innerText = "Logout"; btn.style.borderColor = "var(--merah)"; btn.style.color = "var(--merah)"; 
                 btn.onclick = async () => { 
-                    openCustomConfirm("Logout Akun", "Logout dari Cloud?", async () => { 
-                        await sbClient.auth.signOut(); 
-                        // Note: closeModal() sudah dipanggil otomatis di dalam logic event SIGNED_OUT di atas
-                    }); 
+                    openCustomConfirm("Logout Akun", "Logout dari Cloud?", async () => { if(sbClient) await sbClient.auth.signOut(); }); 
                 }; 
             } else { stat.innerText = "Tidak Terhubung"; stat.style.color = "var(--text-muted)"; btnText.innerText = "Hubungkan"; btn.style.borderColor = "#4285F4"; btn.style.color = "#4285F4"; btn.onclick = openGoogleAuthModal; } 
             document.getElementById('profileViewModal').classList.add('active'); 
@@ -1028,29 +1020,20 @@
             profile.birthDate = document.getElementById('editBirth').value; 
             const rawPin = document.getElementById('editPin').value; 
             if (rawPin && rawPin.trim() !== '') { profile.pin = await hashPIN(rawPin); } 
-            
-            saveProfileLocal(); 
-            initAppHeader(); 
-            closeModal('profileEditModal');
-            showToast("Profil Disimpan"); 
-            
-            saveProfileToSupabase(); 
+            saveProfileLocal(); initAppHeader(); closeModal('profileEditModal'); showToast("Profil Disimpan"); saveProfileToSupabase(); 
         }
         
         async function executeFactoryReset() { 
-            if (!currentUser) return; 
+            if (!currentUser || !sbClient) return; 
             showToast("Memulai format...", "success"); 
             db = []; localStorage.removeItem('finance_modern_db_secure'); 
             try { 
-                if (navigator.onLine) {
-                    const { error } = await sbClient.from('transactions').delete().eq('user_id', currentUser.id); 
-                    if (error) throw error; 
-                }
+                if (navigator.onLine) { const { error } = await sbClient.from('transactions').delete().eq('user_id', currentUser.id); if (error) throw error; }
                 showToast("Database musnah.", "success"); 
             } catch (e) { showToast("Gagal reset di server.", "error"); } 
             closeModal('resetConfirmModal'); updateUI(document.getElementById('searchTxInput') ? document.getElementById('searchTxInput').value : ''); 
         }
-        // 8. INPUT TRANSAKSI LOGIC
+        // --- 9. INPUT TRANSAKSI LOGIC ---
         let isLoanMode = false;
         function quickInput(type, cat, desc, isLoan = false) { 
             isLoanMode = isLoan; 
@@ -1117,7 +1100,7 @@
                         const deskripsiLunas = properTitleCase(`Lunas: ${tx.desc} (${tx.borrower})`); 
                         const lData = { wallet: targetWallet, type: 'masuk', category: 'Lunas Pinjaman', desc: deskripsiLunas, borrower: tx.borrower, amount: tx.amount, date: new Date().toISOString() }; 
                         
-                        if(currentUser && navigator.onLine) { 
+                        if(currentUser && navigator.onLine && sbClient) { 
                             lData.user_id = currentUser.id; 
                             await sbClient.from('transactions').update({ status: 'lunas_pinjaman' }).eq('id', tx.id); 
                             await sbClient.from('transactions').insert([lData]); 
@@ -1142,7 +1125,7 @@
                 let clear = false; 
                 for (let t of db) { 
                     if(t.wallet === 'harian' && t.status === 'hutang') { 
-                        if(currentUser && navigator.onLine) await sbClient.from('transactions').update({ status: 'lunas_hutang' }).eq('id', t.id); 
+                        if(currentUser && navigator.onLine && sbClient) await sbClient.from('transactions').update({ status: 'lunas_hutang' }).eq('id', t.id); 
                         else t.status = 'lunas_hutang'; 
                         clear = true; 
                     } 
@@ -1221,7 +1204,7 @@
                 } 
             } 
             
-            if(currentUser && navigator.onLine) { 
+            if(currentUser && navigator.onLine && sbClient) { 
                 try { 
                     const payload = txToSave.map(t => { let data = { ...t, user_id: currentUser.id }; delete data.id; return data; });
                     const { error } = await sbClient.from('transactions').insert(payload); 
@@ -1233,7 +1216,6 @@
                     showToast("Tersimpan di Cloud"); 
                 } catch(e) { 
                     showToast("Error menyimpan ke server", "error"); 
-                    console.error("Supabase Insert Error:", e); 
                 } 
             } else { 
                 txToSave.forEach(t => { t.id = Date.now() + Math.floor(Math.random() * 1000); db.push(t); }); 
@@ -1246,7 +1228,7 @@
             document.getElementById('tx-is-saving').value = 'false'; 
         });
 
-        // 9. RENDER ENGINE & SEARCH
+        // --- 10. RENDER UI, ANALISIS AI & GRAFIK ---
         function updateHealthEngine(filteredDb) { 
             let tIn = 0, tOut = 0; filteredDb.forEach(t => { if(t.type === 'masuk') tIn += t.amount; else tOut += t.amount; }); 
             let balance = tIn - tOut; const badge = document.getElementById('healthBadge'); const text = document.getElementById('healthText'); badge.className = 'health-badge'; 
@@ -1261,11 +1243,8 @@
             
             if (data.length === 0) { 
                 aiMessages.push("Belum ada data transaksi. Ayo mulai catat aktivitas keuanganmu!");
-                if(!currentUser) {
-                    aiMessages.push("Info: Hubungkan dengan Google agar datamu tersimpan aman di Cloud.");
-                }
-                startAICarousel(textEl);
-                return; 
+                if(!currentUser) aiMessages.push("Info: Hubungkan dengan Google agar datamu tersimpan aman di Cloud.");
+                startAICarousel(textEl); return; 
             } 
             
             const today = new Date(); const currentMonthData = data.filter(t => { const d = new Date(t.date); return d.getMonth() === today.getMonth() && d.getFullYear() === today.getFullYear(); }); 
@@ -1278,9 +1257,7 @@
             let biggestExpenseMsg = "Belum ada data pengeluaran bulan ini untuk dianalisis.";
             if (keluarData.length > 0) { let catTotals = {}; keluarData.forEach(t => { catTotals[t.category] = (catTotals[t.category] || 0) + t.amount; }); let biggestCat = Object.keys(catTotals).reduce((a, b) => catTotals[a] > catTotals[b] ? a : b); biggestExpenseMsg = `Pengeluaran terbesarmu bulan ini tersedot di ${properTitleCase(biggestCat)} (${formatRp(catTotals[biggestCat])}).`; }
             
-            if(!currentUser) {
-                aiMessages.push("Info: Wajib login (Google) jika ingin aplikasi berjalan maksimal 100%!");
-            }
+            if(!currentUser) aiMessages.push("Info: Wajib login (Google) jika ingin aplikasi berjalan maksimal 100%!");
             aiMessages.push("Info: Saldo harian wajib diisi, karena akan mutasi otomatis dari dompet ke tabungan."); 
             
             let statusMsg = "", projectionMsg = "";
@@ -1318,15 +1295,9 @@
         }
 
         function openReceipt(txId) { 
-            const strTxId = String(txId); 
-            const tx = db.find(t => String(t.id) === strTxId || String(t.date) === strTxId); 
-            if(!tx) return; 
-            
-            const rDate = formatDetailDate(tx.date); 
-            const rId = "TRX-" + new Date(tx.date).getTime().toString().slice(-8); 
-            const rType = tx.type === 'masuk' ? 'Pemasukan' : 'Pengeluaran'; 
-            const rColor = tx.type === 'masuk' ? 'var(--hijau)' : 'var(--merah)'; 
-            
+            const strTxId = String(txId); const tx = db.find(t => String(t.id) === strTxId || String(t.date) === strTxId); if(!tx) return; 
+            const rDate = formatDetailDate(tx.date); const rId = "TRX-" + new Date(tx.date).getTime().toString().slice(-8); 
+            const rType = tx.type === 'masuk' ? 'Pemasukan' : 'Pengeluaran'; const rColor = tx.type === 'masuk' ? 'var(--hijau)' : 'var(--merah)'; 
             document.getElementById('receiptContent').innerHTML = ` 
                 <div class="receipt-head">
                     <h3 style="margin:0 0 5px 0; color:var(--putih);">BUKTI MUTASI</h3>
@@ -1351,16 +1322,10 @@
         if(searchInput) {
             searchInput.addEventListener('input', function(e) { 
                 let val = e.target.value.toLowerCase(); 
-                searchClear.style.display = val.length > 0 ? 'block' : 'none'; 
-                updateUI(val); 
+                searchClear.style.display = val.length > 0 ? 'block' : 'none'; updateUI(val); 
             }); 
         }
-        
-        function clearSearch() { 
-            searchInput.value = ''; 
-            searchClear.style.display = 'none'; 
-            updateUI(''); 
-        }
+        function clearSearch() { searchInput.value = ''; searchClear.style.display = 'none'; updateUI(''); }
         
         function renderShortcuts() { 
             const c = document.getElementById('quickActionsContainer'); 
@@ -1387,72 +1352,54 @@
         
         function toggleExpandStat(el, id) { 
             const items = document.getElementById(id).children; 
-            if (el.classList.contains('expanded')) { 
-                for(let i of items) i.className = 'expand-item'; 
-            } else { 
-                for(let i of items) i.className = (i === el) ? 'expand-item expanded' : 'expand-item collapsed'; 
-            } 
+            if (el.classList.contains('expanded')) { for(let i of items) i.className = 'expand-item'; } 
+            else { for(let i of items) i.className = (i === el) ? 'expand-item expanded' : 'expand-item collapsed'; } 
         } 
         
         function expandChart(el, id) { 
             if(!el.classList.contains('expanded')) { 
                 for(let i of document.getElementById(id).children) i.className = (i === el) ? 'expand-item expanded' : 'expand-item collapsed'; 
-                setTimeout(() => { if(pieChart) pieChart.resize(); if(barChart) barChart.resize(); if(lineChart) lineChart.resize(); }, 100); 
-                setTimeout(() => { if(pieChart) pieChart.resize(); if(barChart) barChart.resize(); if(lineChart) lineChart.resize(); }, 550); 
+                setTimeout(() => { if(typeof Chart !== 'undefined') { if(pieChart) pieChart.resize(); if(barChart) barChart.resize(); if(lineChart) lineChart.resize(); } }, 100); 
+                setTimeout(() => { if(typeof Chart !== 'undefined') { if(pieChart) pieChart.resize(); if(barChart) barChart.resize(); if(lineChart) lineChart.resize(); } }, 550); 
             } 
         } 
         
         function closeChart(e, btn) { 
             e.stopPropagation(); 
             for(let i of btn.closest('.expand-container').children) i.className = 'expand-item'; 
-            setTimeout(() => { if(pieChart) pieChart.resize(); if(barChart) barChart.resize(); if(lineChart) lineChart.resize(); }, 100); 
-            setTimeout(() => { if(pieChart) pieChart.resize(); if(barChart) barChart.resize(); if(lineChart) lineChart.resize(); }, 550); 
+            setTimeout(() => { if(typeof Chart !== 'undefined') { if(pieChart) pieChart.resize(); if(barChart) barChart.resize(); if(lineChart) lineChart.resize(); } }, 100); 
+            setTimeout(() => { if(typeof Chart !== 'undefined') { if(pieChart) pieChart.resize(); if(barChart) barChart.resize(); if(lineChart) lineChart.resize(); } }, 550); 
         }
 
-        // TUGAS SELESAI: KEAJAIBAN ANGKA TERJADI DI SINI
+        // TUGAS SELESAI: KEAJAIBAN ANGKA (...)
         function updateUI(searchTerm = '') {
             let tI = 0, tO = 0; 
             db.filter(t => t.wallet === 'harian').forEach(t => { if(t.type === 'masuk') tI += t.amount; else tO += t.amount; });
             const ban = document.getElementById('debtBannerContainer');
             if(activeWallet === 'harian' && (tI - tO) < 0) {
                 ban.innerHTML = `<div class="hutang-banner"><div><span style="font-size:11px; font-weight:900; color:var(--merah);">Status Defisit</span><br><span style="font-size:16px; font-weight:900;">Minus: ${formatRp(Math.abs(tI - tO))}</span></div><button class="btn-quick glow-biru" style="padding:10px 15px; font-size:12px;" onclick="quickInput('masuk','Top-Up','Tutup Hutang')"><span>Top-Up</span></button></div>`;
-            } else {
-                ban.innerHTML = '';
-            }
+            } else { ban.innerHTML = ''; }
 
             const today = new Date(); today.setHours(0,0,0,0);
             const fd = db.filter(tx => { 
                 if(tx.wallet !== activeWallet) return false; 
-                if(currentTimeFilter !== 0) { 
-                    const d = new Date(tx.date); d.setHours(0,0,0,0); 
-                    if(Math.floor(Math.abs(today - d) / 86400000) > currentTimeFilter) return false; 
-                } 
-                if(searchTerm) { 
-                    return tx.desc.toLowerCase().includes(searchTerm) || tx.category.toLowerCase().includes(searchTerm) || (tx.borrower && tx.borrower.toLowerCase().includes(searchTerm)); 
-                } 
+                if(currentTimeFilter !== 0) { const d = new Date(tx.date); d.setHours(0,0,0,0); if(Math.floor(Math.abs(today - d) / 86400000) > currentTimeFilter) return false; } 
+                if(searchTerm) { return tx.desc.toLowerCase().includes(searchTerm) || tx.category.toLowerCase().includes(searchTerm) || (tx.borrower && tx.borrower.toLowerCase().includes(searchTerm)); } 
                 return true; 
             });
 
             updateHealthEngine(fd);
-            let m = 0, k = 0; 
-            fd.forEach(t => { if(t.type === 'masuk') m += t.amount; else k += t.amount; });
+            let m = 0, k = 0; fd.forEach(t => { if(t.type === 'masuk') m += t.amount; else k += t.amount; });
             
-            // Menyuntikkan versi Pendek (data-short) dan Penuh (data-full) ke elemen HTML
-            const sSaldo = formatRpPendek(m - k); const fSaldo = formatRp(m - k);
-            const sMasuk = formatRpPendek(m); const fMasuk = formatRp(m);
-            const sKeluar = formatRpPendek(k); const fKeluar = formatRp(k);
-
+            // Menyuntikkan versi Pendek (data-short) dan Penuh (data-full) ke HTML
             const dispSaldo = document.getElementById('disp-saldo');
-            dispSaldo.setAttribute('data-short', sSaldo);
-            dispSaldo.setAttribute('data-full', fSaldo);
+            if(dispSaldo) { dispSaldo.setAttribute('data-short', formatRpPendek(m - k)); dispSaldo.setAttribute('data-full', formatRp(m - k)); }
 
             const dispMasuk = document.getElementById('disp-masuk');
-            dispMasuk.setAttribute('data-short', sMasuk);
-            dispMasuk.setAttribute('data-full', fMasuk);
+            if(dispMasuk) { dispMasuk.setAttribute('data-short', formatRpPendek(m)); dispMasuk.setAttribute('data-full', formatRp(m)); }
 
             const dispKeluar = document.getElementById('disp-keluar');
-            dispKeluar.setAttribute('data-short', sKeluar);
-            dispKeluar.setAttribute('data-full', fKeluar);
+            if(dispKeluar) { dispKeluar.setAttribute('data-short', formatRpPendek(k)); dispKeluar.setAttribute('data-full', formatRp(k)); }
             
             renderTable(fd); 
             renderCharts(fd);
@@ -1467,9 +1414,7 @@
             }
             
             [...data].sort((a,b) => new Date(b.date) - new Date(a.date)).forEach(tx => {
-                const iM = tx.type === 'masuk'; 
-                let c = getDynamicColor(tx.category, tx.type);
-                
+                const iM = tx.type === 'masuk'; let c = getDynamicColor(tx.category, tx.type);
                 let dr = `<span style="font-weight:700;">${tx.desc}</span>`;
                 if(tx.status === 'dipinjam') dr = `<span style="font-weight:700; color:#a855f7;">${tx.desc}</span><br><span style="font-size:11px; color:var(--text-muted);">Dipinjamkan ke: <b style="color:var(--kuning);">${tx.borrower}</b></span>`;
                 else if (tx.status === 'lunas_pinjaman' && tx.borrower) dr = `<span style="font-weight:700; color:var(--hijau);">${tx.desc}</span><br><span style="font-size:11px; color:var(--text-muted);">Peminjam: <b style="color:var(--putih);">${tx.borrower}</b></span>`;
@@ -1480,64 +1425,42 @@
                 else if (tx.status === 'dipinjam') cr = `<div style="display:flex; flex-direction:column; gap:5px;"><div class="badge-cat" style="border: 1px solid #a855f7; color:#a855f7; background:rgba(168,85,247,0.2);">DIPINJAM</div><button class="btn-lunasi" onclick="lunasiPinjaman(event, '${tx.id || tx.date}')">${svgs.check} TANDAI LUNAS</button></div>`;
                 else if (tx.status === 'lunas_pinjaman') cr = `<div class="badge-cat" style="border: 1px solid var(--hijau); color:var(--hijau); background:rgba(16,185,129,0.1);">LUNAS</div>`;
 
-                // Di tabel tetap menggunakan formatRp (Full Angka)
                 t.innerHTML += `<tr class="clickable-row" onclick="openReceipt('${tx.id || tx.date}')"><td style="color:var(--text-muted); font-size:11px;">${formatDetailDate(tx.date).split(' - ')[0]}<br>${formatDetailDate(tx.date).split(' - ')[1]}</td><td>${cr}</td><td>${dr}</td><td class="amt-cell" style="color:${iM?'var(--biru)':'var(--merah)'};">${iM?'+':'-'}${formatRp(tx.amount)}</td></tr>`;
             });
         }
 
+        // TUGAS SELESAI: PENGAMANAN ANTI-CRASH CHART.JS
         function renderCharts(data) {
+            // Jika Chart.js gagal dimuat karena tidak ada koneksi/cache belum siap, abaikan agar aplikasi tidak freeze!
+            if (typeof Chart === 'undefined') {
+                console.warn("Chart.js belum dimuat dari cache. Melewati render grafik.");
+                return; 
+            }
+            
             if (!document.getElementById('pieChart')) return; 
-            Chart.defaults.color = '#64748b'; 
-            Chart.defaults.font.family = 'Inter';
+            Chart.defaults.color = '#64748b'; Chart.defaults.font.family = 'Inter';
             
             if(data.length === 0) {
-                if(pieChart) pieChart.destroy();
-                if(barChart) barChart.destroy();
-                if(lineChart) lineChart.destroy();
+                if(pieChart) pieChart.destroy(); if(barChart) barChart.destroy(); if(lineChart) lineChart.destroy();
                 return;
             }
             
             const cA = {}; 
-            data.forEach(t => { 
-                const k = `${t.category}`; 
-                if(cA[k]) { cA[k].a += t.amount; } 
-                else { cA[k] = { a: t.amount, color: getDynamicColor(t.category, t.type) }; } 
-            }); 
+            data.forEach(t => { const k = `${t.category}`; if(cA[k]) { cA[k].a += t.amount; } else { cA[k] = { a: t.amount, color: getDynamicColor(t.category, t.type) }; } }); 
             const pL = Object.keys(cA);
             
             if(pieChart) pieChart.destroy(); 
-            pieChart = new Chart(document.getElementById('pieChart'), { 
-                type: 'doughnut', 
-                data: { labels: pL, datasets: [{ data: pL.map(l => cA[l].a), backgroundColor: pL.map(l => cA[l].color), borderWidth: 4, borderColor: '#050814' }] }, 
-                options: { responsive: true, maintainAspectRatio: false, plugins: { legend: { display: false }, tooltip: { callbacks: { label: function(c) { return ' ' + formatRp(c.raw); } } } } } 
-            });
+            pieChart = new Chart(document.getElementById('pieChart'), { type: 'doughnut', data: { labels: pL, datasets: [{ data: pL.map(l => cA[l].a), backgroundColor: pL.map(l => cA[l].color), borderWidth: 4, borderColor: '#050814' }] }, options: { responsive: true, maintainAspectRatio: false, plugins: { legend: { display: false }, tooltip: { callbacks: { label: function(c) { return ' ' + formatRp(c.raw); } } } } } });
 
             const rT = [...data].sort((a,b) => new Date(a.date) - new Date(b.date)).slice(-15);
             if(barChart) barChart.destroy(); 
-            barChart = new Chart(document.getElementById('barChart'), { 
-                type: 'bar', 
-                data: { labels: rT.map(t => t.desc.substring(0,8)), datasets: [{ data: rT.map(t => t.type === 'masuk' ? t.amount : -t.amount), backgroundColor: rT.map(t => getDynamicColor(t.category, t.type)), borderRadius: 4 }] }, 
-                options: { responsive: true, maintainAspectRatio: false, plugins: { legend: { display: false }, tooltip: { callbacks: { label: function(c) { return ' ' + formatRp(Math.abs(c.raw)); } } } }, scales: { x: { display: false }, y: { grid: { color: '#1e293b' } } } } 
-            });
+            barChart = new Chart(document.getElementById('barChart'), { type: 'bar', data: { labels: rT.map(t => t.desc.substring(0,8)), datasets: [{ data: rT.map(t => t.type === 'masuk' ? t.amount : -t.amount), backgroundColor: rT.map(t => getDynamicColor(t.category, t.type)), borderRadius: 4 }] }, options: { responsive: true, maintainAspectRatio: false, plugins: { legend: { display: false }, tooltip: { callbacks: { label: function(c) { return ' ' + formatRp(Math.abs(c.raw)); } } } }, scales: { x: { display: false }, y: { grid: { color: '#1e293b' } } } } });
 
             let cI = 0, cO = 0, hI = [], hO = []; 
-            [...data].sort((a,b)=> new Date(a.date)-new Date(b.date)).forEach(t => { 
-                if(t.type === 'masuk') cI += t.amount; else cO += t.amount; 
-                hI.push(cI); hO.push(cO); 
-            });
-            
+            [...data].sort((a,b)=> new Date(a.date)-new Date(b.date)).forEach(t => { if(t.type === 'masuk') cI += t.amount; else cO += t.amount; hI.push(cI); hO.push(cO); });
             if(lineChart) lineChart.destroy(); 
-            lineChart = new Chart(document.getElementById('lineChart'), { 
-                type: 'line', 
-                data: { labels: hI.map((_,i)=> `T${i+1}`), datasets: [{ label: 'Pemasukan Total', data: hI, borderColor: '#3b82f6', backgroundColor: 'rgba(59, 130, 246, 0.1)', fill: true, pointRadius: 3, tension: 0.3 }, { label: 'Pengeluaran Total', data: hO, borderColor: '#ef4444', backgroundColor: 'rgba(239, 68, 68, 0.1)', fill: true, pointRadius: 3, tension: 0.3 }] }, 
-                options: { responsive: true, maintainAspectRatio: false, plugins: { legend: { display: false }, tooltip: { callbacks: { label: function(c) { return ' ' + formatRp(c.raw); } } } }, scales: { x: { display: false }, y: { grid: { color: '#1e293b' } } } } 
-            });
+            lineChart = new Chart(document.getElementById('lineChart'), { type: 'line', data: { labels: hI.map((_,i)=> `T${i+1}`), datasets: [{ label: 'Pemasukan Total', data: hI, borderColor: '#3b82f6', backgroundColor: 'rgba(59, 130, 246, 0.1)', fill: true, pointRadius: 3, tension: 0.3 }, { label: 'Pengeluaran Total', data: hO, borderColor: '#ef4444', backgroundColor: 'rgba(239, 68, 68, 0.1)', fill: true, pointRadius: 3, tension: 0.3 }] }, options: { responsive: true, maintainAspectRatio: false, plugins: { legend: { display: false }, tooltip: { callbacks: { label: function(c) { return ' ' + formatRp(c.raw); } } } }, scales: { x: { display: false }, y: { grid: { color: '#1e293b' } } } } });
         }
-
-        // INITIALIZATION JALANKAN SAAT APLIKASI MULAI
-        initAppHeader();
-        renderShortcuts(); 
-        updateUI();
 
     </script>
 </body>
