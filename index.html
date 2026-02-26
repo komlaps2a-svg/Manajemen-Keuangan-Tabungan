@@ -8,7 +8,6 @@
     
     <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
     <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
-    <script src="https://cdnjs.cloudflare.com/ajax/libs/crypto-js/4.1.1/crypto-js.min.js"></script>
 
     <style>
         :root {
@@ -341,7 +340,6 @@
             </table>
         </div>
     </div>
-    
     <div class="modal-overlay" id="profileViewModal">
         <div class="modal-card">
             <div style="text-align: center; margin-bottom: 25px; position: relative;">
@@ -577,52 +575,8 @@
         const supabaseKey = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImtrYmZwcHV4dXdjYmFwZXhscXN4Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzIwMDMwODAsImV4cCI6MjA4NzU3OTA4MH0.pOGHpiR333Ltp2g3BQvV8xSMbdbMeRMHJ3ZgecHDRzM';
         const sbClient = window.supabase.createClient(supabaseUrl, supabaseKey);
 
-        // --- 1.5 SISTEM KEAMANAN (ENKRIPSI & HASHING) ---
-        const SECRET_KEY = "F1n4nc3_App_S3cur3_K3y_99"; // Kunci rahasia enkripsi AES
-
-        function saveLocalDB(data) {
-            const ciphertext = CryptoJS.AES.encrypt(JSON.stringify(data), SECRET_KEY).toString();
-            localStorage.setItem('finance_modern_db_secure', ciphertext);
-            // Bersihkan jejak data lama yang tidak aman
-            if(localStorage.getItem('finance_modern_db')) localStorage.removeItem('finance_modern_db');
-        }
-
-        function loadLocalDB() {
-            const ciphertext = localStorage.getItem('finance_modern_db_secure');
-            if (!ciphertext) {
-                // Auto-migrasi: Jika ada data lama yang belum dienkripsi, ambil dan amankan
-                const oldData = localStorage.getItem('finance_modern_db');
-                if (oldData) {
-                    const parsed = JSON.parse(oldData);
-                    saveLocalDB(parsed);
-                    return parsed;
-                }
-                return [];
-            }
-            try {
-                const bytes = CryptoJS.AES.decrypt(ciphertext, SECRET_KEY);
-                return JSON.parse(bytes.toString(CryptoJS.enc.Utf8));
-            } catch (e) {
-                console.error("Gagal dekripsi database lokal!");
-                return [];
-            }
-        }
-
-        async function hashPIN(pin) {
-            if (!pin) return '';
-            const msgBuffer = new TextEncoder().encode(pin);
-            const hashBuffer = await crypto.subtle.digest('SHA-256', msgBuffer);
-            const hashArray = Array.from(new Uint8Array(hashBuffer));
-            return hashArray.map(b => b.toString(16).padStart(2, '0')).join('');
-        }
-
-        function saveProfileLocal() {
-            localStorage.setItem('user_profile_secure', JSON.stringify(profile));
-            if(localStorage.getItem('user_profile')) localStorage.removeItem('user_profile');
-        }
-
         // 2. GLOBAL STATE & DATA
-        let db = loadLocalDB(); // Sekarang menggunakan pemuat data terenkripsi
+        let db = JSON.parse(localStorage.getItem('finance_modern_db')) || [];
         let currentUser = null;
         let activeWallet = 'harian';
         let currentTimeFilter = 365; 
@@ -640,8 +594,7 @@
             photo: 'data:image/svg+xml;base64,PHN2ZyB4bWxucz0iaHR0cDovL3d3dy53My5vcmcvMjAwMC9zdmciIHZpZXdCb3g9IjAgMCAyNCAyNCIgZmlsbD0iIzFlMjliYiI+PHBhdGggZD0iTTEyIDJhNSA1IDAgMSAwIDUgNSBNMTIgMTRhNyA3IDAgMCAwLTcgN3YxSDE5di0xYTcgNyAwIDAgMC03LTdaIi8+PC9zdmc+', 
             joinDate: new Date().toISOString(), birthDate: '', gender: 'Rahasia', googleLinked: false, googleEmail: ''
         };
-        // Mengambil profil (cek yang aman dulu, kalau tidak ada baru ambil yang lama/default)
-        let profile = JSON.parse(localStorage.getItem('user_profile_secure')) || JSON.parse(localStorage.getItem('user_profile')) || defaultProfile;
+        let profile = JSON.parse(localStorage.getItem('user_profile')) || defaultProfile;
 
         const svgs = {
             makan: `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 2v20M17 5H9.5a3.5 3.5 0 0 0 0 7h5a3.5 3.5 0 0 1 0 7H6"/></svg>`,
@@ -675,46 +628,13 @@
         let confirmAction = null;
         function openCustomConfirm(title, desc, action) { document.getElementById('confirmTitle').innerText = title; document.getElementById('confirmDesc').innerHTML = desc; confirmAction = action; document.getElementById('confirmModal').classList.add('active'); }
         document.getElementById('btnConfirmYes').addEventListener('click', () => { if(confirmAction) confirmAction(); closeModal('confirmModal'); });
-        // 4. PENYIMPANAN PROFIL & SANDI TRANSAKSI (DENGAN HASHING)
+
+        // 4. PENYIMPANAN PROFIL & SANDI TRANSAKSI
         async function saveProfileToSupabase() { if (!currentUser) return; try { await sbClient.from('profiles').upsert({ id: currentUser.id, data: profile }); } catch(e) {} }
         function promptTxPin(callback) { pendingTxCallback = callback; const input = document.getElementById('inputTxPin'); input.value = ''; if (!profile.txPin) { document.getElementById('txPinTitle').innerText = "Buat Sandi Transaksi"; document.getElementById('txPinDesc').innerText = "Buat sandi khusus untuk pelunasan."; document.getElementById('btnVerifyTxPin').innerText = "Simpan & Lanjut"; } else { document.getElementById('txPinTitle').innerText = "Sandi Transaksi"; document.getElementById('txPinDesc').innerText = "Masukkan sandi transaksi Anda."; document.getElementById('btnVerifyTxPin').innerText = "Konfirmasi"; } document.getElementById('txPinModal').classList.add('active'); setTimeout(() => input.focus(), 300); }
-        
-        async function verifyTxPin() { 
-            const val = document.getElementById('inputTxPin').value; 
-            if (val.length < 4) { showToast("Sandi min 4 digit", "error"); return; } 
-            
-            // Mengubah input menjadi Hash rahasia
-            const hashedVal = await hashPIN(val); 
-            
-            if (!profile.txPin) { 
-                profile.txPin = hashedVal; 
-                saveProfileLocal(); // Simpan lokal terenkripsi
-                await saveProfileToSupabase(); 
-                showToast("Sandi Dibuat!", "success"); 
-            } else { 
-                if (hashedVal !== profile.txPin) { showToast("Sandi Salah!", "error"); return; } 
-            } 
-            closeModal('txPinModal'); 
-            if (pendingTxCallback) { pendingTxCallback(); pendingTxCallback = null; } 
-        }
-        
+        async function verifyTxPin() { const val = document.getElementById('inputTxPin').value; if (val.length < 4) { showToast("Sandi min 4 digit", "error"); return; } if (!profile.txPin) { profile.txPin = val; localStorage.setItem('user_profile', JSON.stringify(profile)); await saveProfileToSupabase(); showToast("Sandi Dibuat!", "success"); } else { if (val !== profile.txPin) { showToast("Sandi Salah!", "error"); return; } } closeModal('txPinModal'); if (pendingTxCallback) { pendingTxCallback(); pendingTxCallback = null; } }
         function openResetTxPinModal() { closeModal('txPinModal'); if (!profile.pin) { showToast("Buat PIN Profil utama dulu.", "error"); return; } const input = document.getElementById('inputResetTxAuthPin'); input.value = ''; document.getElementById('resetTxPinAuthModal').classList.add('active'); setTimeout(() => input.focus(), 300); }
-        
-        async function executeResetTxPin() { 
-            const pin = document.getElementById('inputResetTxAuthPin').value; 
-            const hashedPin = await hashPIN(pin); // Hash input PIN Profil
-            
-            if (hashedPin === profile.pin) { 
-                profile.txPin = ''; 
-                saveProfileLocal(); 
-                await saveProfileToSupabase(); 
-                showToast("Sandi Direset!"); 
-                closeModal('resetTxPinAuthModal'); 
-                promptTxPin(pendingTxCallback); 
-            } else { 
-                showToast("PIN Salah!", "error"); 
-            } 
-        }
+        async function executeResetTxPin() { const pin = document.getElementById('inputResetTxAuthPin').value; if (pin === profile.pin) { profile.txPin = ''; localStorage.setItem('user_profile', JSON.stringify(profile)); await saveProfileToSupabase(); showToast("Sandi Direset!"); closeModal('resetTxPinAuthModal'); promptTxPin(pendingTxCallback); } else { showToast("PIN Salah!", "error"); } }
 
         // 5. AUTH & REALTIME SYNC ENGINE
         function initAppHeader() { document.getElementById('headName').innerText = profile.name; document.getElementById('headGender').innerText = profile.gender; document.getElementById('headProfileImg').src = profile.photo; }
@@ -722,11 +642,7 @@
         async function fetchUserTransactions() {
             if (!currentUser) return;
             const { data, error } = await sbClient.from('transactions').select('*').eq('user_id', currentUser.id).order('date', { ascending: true });
-            if (!error && data) { 
-                db = data; 
-                saveLocalDB(db); // Simpan ke lokal dengan AES Enkripsi
-                if(typeof updateUI === 'function') updateUI(document.getElementById('searchTxInput').value); 
-            }
+            if (!error && data) { db = data; localStorage.setItem('finance_modern_db', JSON.stringify(db)); if(typeof updateUI === 'function') updateUI(document.getElementById('searchTxInput').value); }
         }
 
         function setupRealtime() {
@@ -738,8 +654,7 @@
         window.addEventListener('online', async () => { 
             document.getElementById('networkStatus').innerText = "Online Mode (Cloud)"; document.getElementById('networkStatus').className = "status-sync sync-online"; 
             if (currentUser) { 
-                let lDb = loadLocalDB(); // Baca lokal terenkripsi
-                let unsynced = lDb.filter(t => !t.user_id || typeof t.id === 'number'); 
+                let lDb = JSON.parse(localStorage.getItem('finance_modern_db')) || []; let unsynced = lDb.filter(t => !t.user_id || typeof t.id === 'number'); 
                 if(unsynced.length > 0) { showToast("Koneksi pulih. Menyelaraskan...", "success"); for (let t of unsynced) { let txData = { ...t, user_id: currentUser.id }; if(txData.id && typeof txData.id === 'number') delete txData.id; await sbClient.from('transactions').insert([txData]); } fetchUserTransactions(); } 
             } 
         });
@@ -750,19 +665,15 @@
                 currentUser = session.user; document.getElementById('networkStatus').innerText = navigator.onLine ? "Online Mode (Cloud)" : "Offline Mode (Lokal)"; document.getElementById('networkStatus').className = navigator.onLine ? "status-sync sync-online" : "status-sync sync-offline"; 
                 const { data: profileData } = await sbClient.from('profiles').select('data').eq('id', currentUser.id).single();
                 if (profileData && profileData.data) { profile = { ...profile, ...profileData.data }; } else { if(profile.name === 'Guest') profile.name = currentUser.user_metadata?.full_name || 'Member'; profile.photo = currentUser.user_metadata?.avatar_url || profile.photo; await saveProfileToSupabase(); }
-                profile.googleLinked = true; profile.googleEmail = currentUser.email; 
-                saveProfileLocal(); 
-                initAppHeader(); fetchUserTransactions(); setupRealtime();
+                profile.googleLinked = true; profile.googleEmail = currentUser.email; localStorage.setItem('user_profile', JSON.stringify(profile)); initAppHeader(); fetchUserTransactions(); setupRealtime();
             } else {
                 currentUser = null; document.getElementById('networkStatus').innerText = "Offline Mode (Lokal)"; document.getElementById('networkStatus').className = "status-sync sync-offline"; 
                 if (realTimeSubscription) { sbClient.removeChannel(realTimeSubscription); }
-                db = loadLocalDB(); 
-                if(typeof updateUI === 'function') updateUI(document.getElementById('searchTxInput').value);
+                db = JSON.parse(localStorage.getItem('finance_modern_db')) || []; if(typeof updateUI === 'function') updateUI(document.getElementById('searchTxInput').value);
             }
         });
 
         document.getElementById('btnRealGoogleLogin').addEventListener('click', async () => { const { error } = await sbClient.auth.signInWithOAuth({ provider: 'google', options: { redirectTo: window.location.origin } }); if (error) showToast("Gagal Login", "error"); else closeModal('googleAuthModal'); });
-        
         // 6. INTERAKSI UI DOM
         function switchWallet(type) { activeWallet = type; document.getElementById('walletSwitchContainer').setAttribute('data-active', type); renderShortcuts(); updateUI(document.getElementById('searchTxInput').value); }
         function toggleCustomSelect(id) { const box = document.getElementById(id); const isOpen = box.classList.contains('open'); document.querySelectorAll('.custom-options.open').forEach(el => el.classList.remove('open')); if(!isOpen) box.classList.add('open'); }
@@ -781,6 +692,7 @@
             const blob = new Blob([csv], { type: 'text/csv;charset=utf-8;' }); const link = document.createElement("a"); link.href = URL.createObjectURL(blob); link.download = `Laporan_${activeWallet.toUpperCase()}_${new Date().toISOString().split('T')[0]}.csv`; 
             document.body.appendChild(link); link.click(); document.body.removeChild(link); showToast("CSV Berhasil Diunduh", "success"); 
         }
+
         // 7. MANAJEMEN PROFIL & UPLOAD GAMBAR
         function openProfileView() { 
             let inT = 0, outT = 0; db.forEach(t => { if(t.type === 'masuk') inT += t.amount; else outT += t.amount; }); 
@@ -788,54 +700,16 @@
             const stat = document.getElementById('viewGoogleStatus'); const btnText = document.getElementById('textGoogleLink'); const btn = document.getElementById('btnGoogleLink'); 
             if(currentUser) { 
                 stat.innerHTML = `<span style="color:var(--hijau); font-weight:700;">${currentUser.email}</span>`; btnText.innerText = "Logout"; btn.style.borderColor = "var(--merah)"; btn.style.color = "var(--merah)"; 
-                btn.onclick = async () => { openCustomConfirm("Logout Akun", "Logout dari Cloud?", async () => { await sbClient.auth.signOut(); profile.googleLinked = false; profile.googleEmail = ''; saveProfileLocal(); showToast("Logout berhasil", "success"); closeModal('profileViewModal'); }); }; 
+                btn.onclick = async () => { openCustomConfirm("Logout Akun", "Logout dari Cloud?", async () => { await sbClient.auth.signOut(); profile.googleLinked = false; profile.googleEmail = ''; localStorage.setItem('user_profile', JSON.stringify(profile)); showToast("Logout berhasil", "success"); closeModal('profileViewModal'); }); }; 
             } else { stat.innerText = "Tidak Terhubung"; stat.style.color = "var(--text-muted)"; btnText.innerText = "Hubungkan"; btn.style.borderColor = "#4285F4"; btn.style.color = "#4285F4"; btn.onclick = openGoogleAuthModal; } 
             document.getElementById('profileViewModal').classList.add('active'); 
         }
         
         function openGoogleAuthModal() { document.getElementById('googleAuthModal').classList.add('active'); }
-        
-        function requestProfileEdit() { 
-            if(profile.pin && profile.pin !== '') { 
-                closeModal('profileViewModal'); 
-                document.getElementById('inputAuthPin').value = ''; 
-                document.getElementById('pinAuthModal').classList.add('active'); 
-            } else { 
-                openProfileEdit(); 
-            } 
-        }
-        
-        function initResetSequence() { 
-            if (!currentUser) { showToast("Wajib tersambung Cloud.", "error"); return; } 
-            if (!profile.pin || profile.pin.trim() === '') { showToast("Buat PIN di Edit Profil.", "error"); return; } 
-            closeModal('profileViewModal'); 
-            document.getElementById('inputResetPin').value = ''; 
-            document.getElementById('resetPinModal').classList.add('active'); 
-        }
-        
-        async function verifyPinAuth(actionType) { 
-            const inputVal = document.getElementById(actionType === 'edit' ? 'inputAuthPin' : 'inputResetPin').value; 
-            const hashedInput = await hashPIN(inputVal); // Hash input untuk dicocokkan
-            
-            if (hashedInput === profile.pin) { 
-                if (actionType === 'edit') { 
-                    closeModal('pinAuthModal'); openProfileEdit(); 
-                } else if (actionType === 'reset') { 
-                    closeModal('resetPinModal'); document.getElementById('resetConfirmModal').classList.add('active'); 
-                } 
-            } else { 
-                showToast("PIN Salah!", "error"); 
-            } 
-        }
-        
-        function openProfileEdit() { 
-            document.getElementById('editProfileImg').src = profile.photo; 
-            document.getElementById('editName').value = profile.name !== 'Guest' ? profile.name : ''; 
-            selectGender(profile.gender); 
-            document.getElementById('editBirth').value = profile.birthDate; 
-            document.getElementById('editPin').value = ''; // Jangan tampilkan hash PIN di form edit
-            document.getElementById('profileEditModal').classList.add('active'); 
-        }
+        function requestProfileEdit() { if(profile.pin && profile.pin !== '') { closeModal('profileViewModal'); document.getElementById('inputAuthPin').value = ''; document.getElementById('pinAuthModal').classList.add('active'); } else { openProfileEdit(); } }
+        function initResetSequence() { if (!currentUser) { showToast("Wajib tersambung Cloud.", "error"); return; } if (!profile.pin || profile.pin.trim() === '') { showToast("Buat PIN di Edit Profil.", "error"); return; } closeModal('profileViewModal'); document.getElementById('inputResetPin').value = ''; document.getElementById('resetPinModal').classList.add('active'); }
+        function verifyPinAuth(actionType) { const inputVal = document.getElementById(actionType === 'edit' ? 'inputAuthPin' : 'inputResetPin').value; if (inputVal === profile.pin) { if (actionType === 'edit') { closeModal('pinAuthModal'); openProfileEdit(); } else if (actionType === 'reset') { closeModal('resetPinModal'); document.getElementById('resetConfirmModal').classList.add('active'); } } else { showToast("PIN Salah!", "error"); } }
+        function openProfileEdit() { document.getElementById('editProfileImg').src = profile.photo; document.getElementById('editName').value = profile.name !== 'Guest' ? profile.name : ''; selectGender(profile.gender); document.getElementById('editBirth').value = profile.birthDate; document.getElementById('editPin').value = profile.pin; document.getElementById('profileEditModal').classList.add('active'); }
         
         document.getElementById('profileUploader').addEventListener('change', function(e) { 
             const f = e.target.files[0]; if(!f) return; showToast("Mengompresi foto...", "success"); const reader = new FileReader(); 
@@ -843,40 +717,10 @@
         });
 
         document.getElementById('editBirth').addEventListener('input', function(e) { let v = e.target.value.replace(/\D/g, ''); if (v.length > 8) v = v.substring(0, 8); let hari = v.substring(0, 2); let bulan = v.substring(2, 4); let tahun = v.substring(4, 8); if (hari.length === 2 && parseInt(hari) > 31) hari = '31'; if (hari.length === 2 && parseInt(hari) === 0) hari = '01'; if (bulan.length === 2 && parseInt(bulan) > 12) bulan = '12'; if (bulan.length === 2 && parseInt(bulan) === 0) bulan = '01'; let finalFormat = hari; if (v.length >= 3) finalFormat += '/' + bulan; if (v.length >= 5) finalFormat += '/' + tahun; e.target.value = finalFormat; });
-        
-        async function saveProfileData() { 
-            profile.name = smartCapitalize(document.getElementById('editName').value.trim()) || 'Guest'; 
-            profile.gender = document.getElementById('editGender').value; 
-            profile.birthDate = document.getElementById('editBirth').value; 
-            
-            const rawPin = document.getElementById('editPin').value;
-            if (rawPin && rawPin.trim() !== '') {
-                profile.pin = await hashPIN(rawPin); // Hash PIN baru jika user mengetikkan sesuatu
-            }
-            
-            saveProfileLocal(); 
-            await saveProfileToSupabase(); 
-            initAppHeader(); 
-            closeModal('profileEditModal'); 
-            showToast("Profil Disimpan"); 
-        }
-        
-        async function executeFactoryReset() { 
-            if (!currentUser) return; 
-            showToast("Memulai format...", "success"); 
-            db = []; 
-            localStorage.removeItem('finance_modern_db_secure'); 
-            try { 
-                const { error } = await sbClient.from('transactions').delete().eq('user_id', currentUser.id); 
-                if (error) throw error; 
-                showToast("Database musnah.", "success"); 
-            } catch (e) { 
-                showToast("Gagal reset.", "error"); 
-            } 
-            closeModal('resetConfirmModal'); updateUI(document.getElementById('searchTxInput').value); 
-        }
+        async function saveProfileData() { profile.name = smartCapitalize(document.getElementById('editName').value.trim()) || 'Guest'; profile.gender = document.getElementById('editGender').value; profile.birthDate = document.getElementById('editBirth').value; profile.pin = document.getElementById('editPin').value; localStorage.setItem('user_profile', JSON.stringify(profile)); await saveProfileToSupabase(); initAppHeader(); closeModal('profileEditModal'); showToast("Profil Disimpan"); }
+        async function executeFactoryReset() { if (!currentUser) return; showToast("Memulai format...", "success"); db = []; localStorage.removeItem('finance_modern_db'); try { const { error } = await sbClient.from('transactions').delete().eq('user_id', currentUser.id); if (error) throw error; showToast("Database musnah.", "success"); } catch (e) { showToast("Gagal reset.", "error"); } closeModal('resetConfirmModal'); updateUI(document.getElementById('searchTxInput').value); }
 
-        // 8. INPUT TRANSAKSI LOGIC
+        // 8. INPUT TRANSAKSI LOGIC (DENGAN REGEX SUPER KETAT)
         let isLoanMode = false;
         function quickInput(type, cat, desc, isLoan = false) { 
             isLoanMode = isLoan; document.getElementById('tx-type').value = type; document.getElementById('modal-title').innerText = isLoan ? 'Catat Uang Dipinjam' : (type === 'masuk' ? 'Input Pemasukan' : 'Input Pengeluaran'); document.getElementById('tx-desc').value = ''; document.getElementById('tx-category-manual').value = ''; document.getElementById('tx-borrower').value = ''; 
@@ -897,7 +741,7 @@
                     openCustomConfirm("Pelunasan Pinjaman", `Uang senilai <b>${formatRp(tx.amount)}</b> dari <b>${tx.borrower}</b> sudah lunas ke <b>${walletName}</b>?`, async () => { 
                         const deskripsiLunas = `Lunas: ${tx.desc} (${tx.borrower})`; const lData = { wallet: targetWallet, type: 'masuk', category: 'Lunas Pinjaman', desc: deskripsiLunas, borrower: tx.borrower, amount: tx.amount, date: new Date().toISOString() }; 
                         if(currentUser) { lData.user_id = currentUser.id; await sbClient.from('transactions').update({ status: 'lunas_pinjaman' }).eq('id', tx.id); await sbClient.from('transactions').insert([lData]); fetchUserTransactions(); } 
-                        else { db[idx].status = 'lunas_pinjaman'; lData.id = Date.now(); db.push(lData); saveLocalDB(db); updateUI(document.getElementById('searchTxInput').value); } 
+                        else { db[idx].status = 'lunas_pinjaman'; lData.id = Date.now(); db.push(lData); localStorage.setItem('finance_modern_db', JSON.stringify(db)); updateUI(document.getElementById('searchTxInput').value); } 
                         showToast(`Pinjaman Lunas`, "success"); 
                     }); 
                 } 
@@ -908,7 +752,7 @@
             let inT = 0, outT = 0; db.filter(t => t.wallet === 'harian').forEach(t => { if(t.type === 'masuk') inT += t.amount; else outT += t.amount; }); 
             if((inT - outT) >= 0) { 
                 let clear = false; for (let t of db) { if(t.wallet === 'harian' && t.status === 'hutang') { if(currentUser) await sbClient.from('transactions').update({ status: 'lunas_hutang' }).eq('id', t.id); else t.status = 'lunas_hutang'; clear = true; } } 
-                if(clear && !currentUser) saveLocalDB(db); if(clear) showToast("Hutang otomatis lunas!", "success"); if(clear && currentUser) fetchUserTransactions();
+                if(clear && !currentUser) localStorage.setItem('finance_modern_db', JSON.stringify(db)); if(clear) showToast("Hutang otomatis lunas!", "success"); if(clear && currentUser) fetchUserTransactions();
             } 
         }
 
@@ -922,6 +766,7 @@
             
             if(!cF || !dF) { showToast("Isi data", "error"); document.getElementById('tx-is-saving').value = 'false'; return; } 
             
+            // --- REGEX SUPER KETAT PEMBLOKIR TABUNGAN DI DOMPET HARIAN ---
             const tabunganRegex = /tabung|tbgn|tbg|nabung/i;
             const isTabunganRelated = tabunganRegex.test(cF) || tabunganRegex.test(dF);
             
@@ -931,6 +776,7 @@
             let sI_har = 0, sO_har = 0; db.filter(t => t.wallet === 'harian').forEach(t => { if(t.type === 'masuk') sI_har += t.amount; else sO_har += t.amount; }); let saldoHarian = sI_har - sO_har; 
             let sI_tab = 0, sO_tab = 0; db.filter(t => t.wallet === 'tabungan').forEach(t => { if(t.type === 'masuk') sI_tab += t.amount; else sO_tab += t.amount; }); let saldoTabungan = sI_tab - sO_tab; 
 
+            // Validasi Blokir & Pindah Tabungan dengan Regex
             if (activeWallet === 'harian' && isTabunganRelated) { 
                 if (type === 'masuk') { 
                     showToast("Ditolak! Indikasi manipulasi tabungan.", "error"); 
@@ -974,8 +820,7 @@
                 } catch(e) { showToast("Error menyimpan", "error"); console.error("Supabase Insert Error:", e); } 
             } else { 
                 txToSave.forEach(t => { t.id = Date.now() + Math.floor(Math.random() * 1000); db.push(t); }); 
-                saveLocalDB(db); 
-                closeModal('txModal'); 
+                localStorage.setItem('finance_modern_db', JSON.stringify(db)); closeModal('txModal'); 
                 if(txToSave.some(t => t.wallet === 'harian' && t.type === 'masuk')) checkAndAutoLunasHutang(); 
                 updateUI(document.getElementById('searchTxInput').value); showToast(txToSave.length > 1 ? "Tracker Transparan Berhasil" : "Disimpan Lokal"); 
             } 
@@ -990,7 +835,7 @@
             generateAIForecast(filteredDb); 
         }
 
-        function generateAIForecast(data) { 
+                function generateAIForecast(data) { 
             const box = document.getElementById('aiInsightBox'); 
             const textEl = document.getElementById('aiInsightText'); 
             if (data.length === 0) { box.style.display = 'none'; return; } 
@@ -1021,18 +866,26 @@
                 return totalAmount + (futureTxCount * (totalAmount / txArray.length)); 
             } 
 
+            // --- BAGIAN 4: LOGIKA PENGELUARAN TERBESAR OTOMATIS ---
             let biggestExpenseMsg = "Belum ada data pengeluaran bulan ini untuk dianalisis.";
             if (keluarData.length > 0) {
                 let catTotals = {};
-                keluarData.forEach(t => { catTotals[t.category] = (catTotals[t.category] || 0) + t.amount; });
+                keluarData.forEach(t => {
+                    catTotals[t.category] = (catTotals[t.category] || 0) + t.amount;
+                });
+                // Mencari kategori dengan nominal kumulatif terbesar
                 let biggestCat = Object.keys(catTotals).reduce((a, b) => catTotals[a] > catTotals[b] ? a : b);
                 biggestExpenseMsg = `Pengeluaran terbesarmu bulan ini tersedot di ${biggestCat} (${formatRp(catTotals[biggestCat])}).`;
             }
 
+            // --- BAGIAN 5: INFO WAJIB LOGIN ---
             const loginMsg = "Info: Wajib login (Hubungkan Google) jika ingin aplikasi berjalan maksimal dan data 100% aman!";
+
             aiMessages = []; 
+            // Bagian 1
             aiMessages.push("Info: Saldo harian perlu di isi sebelum setor tabungan karena mutasi otomatis dari dompet ke tabungan."); 
             
+            // Variabel untuk menampung Bagian 2 dan Bagian 3
             let statusMsg = "";
             let projectionMsg = "";
 
@@ -1083,10 +936,11 @@
                 } 
             } 
 
-            aiMessages.push(statusMsg);         
-            aiMessages.push(projectionMsg);     
-            aiMessages.push(biggestExpenseMsg); 
-            aiMessages.push(loginMsg);          
+            // Memasukkan susunan pesan agar genap menjadi 5 bagian
+            aiMessages.push(statusMsg);         // Bagian 2
+            aiMessages.push(projectionMsg);     // Bagian 3
+            aiMessages.push(biggestExpenseMsg); // Bagian 4
+            aiMessages.push(loginMsg);          // Bagian 5
 
             if (aiMessages.length > 0) { 
                 box.style.display = 'flex'; 
