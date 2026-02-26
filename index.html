@@ -8,7 +8,7 @@
     <meta http-equiv="Pragma" content="no-cache">
     <meta http-equiv="Expires" content="0">
     
-    <title>Enterprise Finance Dashboard v17.4 (Offline & Auth Fix)</title>
+    <title>Enterprise Finance Dashboard v17.5 (Super Fix)</title>
     <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800;900&display=swap" rel="stylesheet">
     
     <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
@@ -27,6 +27,8 @@
             font-family: 'Inter', sans-serif; background-color: var(--navy); color: var(--putih);
             margin: 0; padding: 20px; line-height: 1.5; touch-action: manipulation; overflow-x: hidden;
             box-sizing: border-box;
+            /* FIX 1: Mematikan Pull-to-Refresh di Chrome/Android agar tidak ter-refresh saat ditarik ke atas */
+            overscroll-behavior-y: none; 
         }
 
         *, *::before, *::after { box-sizing: inherit; }
@@ -102,8 +104,9 @@
         
         /* FILTER WAKTU & INSIGHT AI ROW */
         .filter-insight-row { display: flex; gap: 10px; width: 100%; margin-bottom: 25px; align-items: stretch; height: 90px; }
-        .time-filter-wrapper { width: 115px; margin-bottom: 0; flex-shrink: 0; position: relative; height: 100%; }
-        .time-filter-wrapper .custom-select-trigger { padding: 0 10px; font-size: 11px; font-weight: 800; background: var(--hitam-card); height: 100%; text-align: left; }
+        /* FIX 2: Lebar filter dikurangi drastis jadi 95px agar area insight lebih lega */
+        .time-filter-wrapper { width: 95px; margin-bottom: 0; flex-shrink: 0; position: relative; height: 100%; }
+        .time-filter-wrapper .custom-select-trigger { padding: 0 8px; font-size: 10px; font-weight: 800; background: var(--hitam-card); height: 100%; text-align: left; }
         
         /* KOTAK INSIGHT AI */
         .insight-box { background: rgba(59, 130, 246, 0.08); border-left: 3px solid var(--biru); padding: 12px 15px; border-radius: 8px; font-weight: 600; color: var(--putih); display: flex; align-items: center; gap: 12px; flex: 1; overflow: hidden; height: 100%; box-sizing: border-box; }
@@ -611,6 +614,23 @@
         </div>
     </div>
     <script>
+        // --- 0. AUTO-REFRESH ENGINE (GITHUB CACHE BUSTER) ---
+        let lastBackgroundTime = 0;
+        document.addEventListener("visibilitychange", () => {
+            if (document.visibilityState === 'hidden') {
+                lastBackgroundTime = Date.now();
+            } else if (document.visibilityState === 'visible') {
+                // Jika aplikasi ditinggal di background lebih dari 3 menit (180.000 ms) dan HP online
+                if (lastBackgroundTime > 0 && (Date.now() - lastBackgroundTime > 180000) && navigator.onLine) {
+                    showToast("Mengecek versi terbaru...", "success");
+                    setTimeout(() => {
+                        // Memaksa browser mengambil versi terbaru dari server, bukan dari cache
+                        window.location.replace(window.location.pathname + '?v=' + Date.now());
+                    }, 800);
+                }
+            }
+        });
+
         // 1. KONFIGURASI SUPABASE GLOBAL
         const supabaseUrl = 'https://kkbfppuxuwcbapexlqsx.supabase.co';
         const supabaseKey = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImtrYmZwcHV4dXdjYmFwZXhscXN4Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzIwMDMwODAsImV4cCI6MjA4NzU3OTA4MH0.pOGHpiR333Ltp2g3BQvV8xSMbdbMeRMHJ3ZgecHDRzM';
@@ -761,10 +781,7 @@
         async function fetchUserTransactions() {
             if (!currentUser) return;
             try {
-                // FIX: Cegah nge-fetch ke server jika sedang tidak ada koneksi
-                if (!navigator.onLine) {
-                    throw new Error("Koneksi terputus. Beralih ke data lokal.");
-                }
+                if (!navigator.onLine) throw new Error("Offline mode aktif.");
                 const { data, error } = await sbClient.from('transactions').select('*').eq('user_id', currentUser.id).order('date', { ascending: true });
                 if (error) throw error;
                 if (data) { 
@@ -773,8 +790,8 @@
                     if(typeof updateUI === 'function') updateUI(document.getElementById('searchTxInput').value); 
                 }
             } catch (error) {
-                console.warn("Fetch gagal (Offline/Error), menggunakan data lokal.", error);
-                db = loadLocalDB(); // Fallback ke data lokal yang tersimpan terakhir
+                console.warn("Menggunakan data lokal.", error);
+                db = loadLocalDB(); 
                 if(typeof updateUI === 'function') updateUI(document.getElementById('searchTxInput').value);
             }
         }
@@ -805,21 +822,23 @@
         window.addEventListener('offline', () => { 
             document.getElementById('networkStatus').innerText = "Offline Mode (Lokal)"; 
             document.getElementById('networkStatus').className = "status-sync sync-offline"; 
-            // FIX: Pastikan UI langsung update pakai data lokal begitu internet putus
             db = loadLocalDB();
             if(typeof updateUI === 'function') updateUI(document.getElementById('searchTxInput').value);
         });
 
         sbClient.auth.onAuthStateChange(async (event, session) => {
+            // FIX LOGOUT STUCK: Hancurkan semua data secara brutal
             if (event === 'SIGNED_OUT') {
                 currentUser = null;
-                // FIX: Bersihkan memori dan biarkan proses pembersihan selesai sebelum di reload
                 localStorage.clear(); 
+                sessionStorage.clear(); // Hapus memori sementara juga
                 db = [];
                 profile = defaultProfile;
+                
+                // Paksa halaman reload tanpa cache sama sekali
                 setTimeout(() => {
-                    window.location.replace(window.location.origin + window.location.pathname);
-                }, 500); // Jeda setengah detik mencegah race condition
+                    window.location.replace(window.location.pathname + '?clear=' + Date.now());
+                }, 400); 
                 return;
             }
 
@@ -1051,7 +1070,7 @@
             // FIX: Kotak AI tidak disembunyikan meski data kosong
             if (data.length === 0) { 
                 aiMessages.push("Belum ada data transaksi. Ayo mulai catat aktivitas keuanganmu!");
-                aiMessages.push("Info: Wajib login Google agar data tersimpan aman di Cloud.");
+                aiMessages.push("Info: Hubungkan dengan Google agar datamu tersimpan aman di Cloud.");
                 startAICarousel(textEl);
                 return; 
             } 
@@ -1066,7 +1085,7 @@
             let biggestExpenseMsg = "Belum ada data pengeluaran bulan ini untuk dianalisis.";
             if (keluarData.length > 0) { let catTotals = {}; keluarData.forEach(t => { catTotals[t.category] = (catTotals[t.category] || 0) + t.amount; }); let biggestCat = Object.keys(catTotals).reduce((a, b) => catTotals[a] > catTotals[b] ? a : b); biggestExpenseMsg = `Pengeluaran terbesarmu bulan ini tersedot di ${biggestCat} (${formatRp(catTotals[biggestCat])}).`; }
             const loginMsg = "Info: Wajib login (Hubungkan Google) jika ingin aplikasi berjalan maksimal dan data 100% aman!";
-            aiMessages.push("Info: Saldo harian perlu di isi sebelum setor tabungan karena mutasi otomatis dari dompet ke tabungan."); 
+            aiMessages.push("Info: Saldo harian perlu diisi sebelum setor tabungan karena mutasi otomatis dari dompet ke tabungan."); 
             
             let statusMsg = "", projectionMsg = "";
             if (activeWallet === 'harian') { 
@@ -1081,7 +1100,6 @@
             } 
             aiMessages.push(statusMsg); aiMessages.push(projectionMsg); aiMessages.push(biggestExpenseMsg); aiMessages.push(loginMsg); 
             
-            // Pastikan array unik dan valid lalu jalankan slider
             aiMessages = [...new Set(aiMessages)].filter(m => m !== "");
             startAICarousel(textEl); 
         }
@@ -1166,11 +1184,10 @@
         }
 
         function renderCharts(data) {
-            // FIX: Cek ekstensi chart, cegah crash di mode offline jika elemen belum siap
+            // FIX: Cek ekstensi chart, cegah crash di mode offline
             if (!document.getElementById('pieChart')) return; 
             Chart.defaults.color = '#64748b'; Chart.defaults.font.family = 'Inter';
             
-            // Render kosong jika tidak ada data
             if(data.length === 0) {
                 if(pieChart) pieChart.destroy();
                 if(barChart) barChart.destroy();
