@@ -664,7 +664,7 @@
                 });
         }
 
-        async function verifyOTPAndSavePin() {
+                async function verifyOTPAndSavePin() {
             const userOTP = document.getElementById('inputOTP').value;
             const newPin = document.getElementById('inputNewPinOTP').value;
 
@@ -672,13 +672,21 @@
             if (userOTP !== generatedOTP) { showToast("Kode OTP Salah!", "error"); return; }
             if (newPin.length < 4) { showToast("PIN Baru min 4 digit!", "error"); return; }
 
-            profile.pin = await hashPIN(newPin); // Enkripsi PIN baru
+            // 1. Enkripsi dan simpan ke Lokal (HP) lebih dulu
+            profile.pin = await hashPIN(newPin); 
             saveProfileLocal();
-            await saveProfileToSupabase();
             generatedOTP = ""; // Hapus OTP dari memori
             
-            showToast("PIN Berhasil Direset!", "success");
+            // 2. LANGSUNG tutup modal & kasih notif sukses (biar instan!)
             closeModal('otpVerifyModal');
+            showToast("PIN Berhasil Direset!", "success");
+            
+            // 3. Bersihkan kolom input untuk pemakaian berikutnya
+            document.getElementById('inputOTP').value = '';
+            document.getElementById('inputNewPinOTP').value = '';
+
+            // 4. Lakukan sinkronisasi ke server Supabase secara asinkron di latar belakang (tanpa memblokir layar)
+            saveProfileToSupabase(); 
         }
 
         // --- 1.6 SISTEM KEAMANAN LOKAL (ENKRIPSI AES & HASHING) ---
