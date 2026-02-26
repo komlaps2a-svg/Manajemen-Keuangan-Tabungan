@@ -94,7 +94,6 @@
         .custom-option { padding: 14px 16px; font-size: 14px; font-weight: 600; cursor: pointer; border-bottom: 1px solid var(--border); transition: background 0.2s; }
         .custom-option:last-child { border-bottom: none; }
         .custom-option:hover { background: var(--biru); color: white; }
-
         /* FILTER WAKTU & INSIGHT AI ROW */
         .filter-insight-row { display: flex; gap: 10px; width: 100%; margin-bottom: 25px; align-items: stretch; height: 90px; }
         .time-filter-wrapper { width: 140px; margin-bottom: 0; flex-shrink: 0; position: relative; height: 100%; }
@@ -106,6 +105,7 @@
         .insight-box span { font-size: 11.5px; line-height: 1.5; display: -webkit-box; -webkit-line-clamp: 4; -webkit-box-orient: vertical; overflow: hidden; text-overflow: ellipsis; text-align: left; width: 100%; word-wrap: break-word; margin: 0; padding: 0; }
         .fade-transition { transition: opacity 0.4s ease-in-out; opacity: 1; }
         .fade-out { opacity: 0; }
+
         /* === EXPANDABLE FLEX GRID === */
         .expand-container { display: flex; gap: 10px; width: 100%; margin-bottom: 15px; transition: all 0.5s cubic-bezier(0.25, 1, 0.5, 1); }
         .expand-container:has(.expanded) { gap: 0; }
@@ -188,7 +188,6 @@
         .modal-overlay.active { opacity: 1; visibility: visible; }
         .modal-card { background: var(--hitam-card); border: 1px solid var(--border); border-radius: 20px; width: 100%; max-width: 400px; padding: 30px; box-shadow: 0 25px 50px -12px rgba(0, 0, 0, 0.9); transform: scale(0.9) translateY(20px); opacity: 0; transition: all 0.4s cubic-bezier(0.175, 0.885, 0.32, 1.275); margin: auto; position: relative; overflow: visible; }
         .modal-overlay.active .modal-card { transform: scale(1) translateY(0); opacity: 1; }
-        
         .receipt-card { background: #0f172a; border: 2px dashed #334155; border-radius: 12px; padding: 25px; text-align: left; position: relative; margin-bottom: 15px;}
         .receipt-card::before, .receipt-card::after { content: ''; position: absolute; width: 20px; height: 20px; background: rgba(5, 8, 20, 0.9); border-radius: 50%; top: 60px; }
         .receipt-card::before { left: -12px; border-right: 2px dashed #334155; }
@@ -324,7 +323,6 @@
     </div>
     
     <div id="debtBannerContainer"></div>
-    
     <div class="collapsible-content" id="historySection">
         <div class="search-container">
             <input type="text" id="searchTxInput" class="search-input" placeholder="Cari transaksi, kategori, atau nama peminjam..." autocomplete="off">
@@ -340,6 +338,7 @@
             </table>
         </div>
     </div>
+
     <div class="modal-overlay" id="profileViewModal">
         <div class="modal-card">
             <div style="text-align: center; margin-bottom: 25px; position: relative;">
@@ -611,7 +610,7 @@
         const sbClient = window.supabase.createClient(supabaseUrl, supabaseKey);
 
         // --- 1.5 INISIALISASI EMAILJS & OTP ---
-        emailjs.init("qcqCpH81lqwQKw_MG"); // Kunci Public Key kamu sudah dimasukkan!
+        emailjs.init("qcqCpH81lqwQKw_MG"); 
         let generatedOTP = "";
         let otpExpiryTime = 0;
 
@@ -634,16 +633,14 @@
             btn.innerText = "Mengirim...";
             btn.disabled = true;
 
-            // Generate 6 digit angka acak
             generatedOTP = Math.floor(100000 + Math.random() * 900000).toString();
-            otpExpiryTime = Date.now() + (5 * 60 * 1000); // Kedaluwarsa dalam 5 menit
+            otpExpiryTime = Date.now() + (5 * 60 * 1000); // 5 menit
 
             const templateParams = {
                 to_email: profile.googleEmail,
                 otp_code: generatedOTP
             };
 
-            // Service ID dan Template ID kamu sudah dimasukkan di bawah ini!
             emailjs.send('service_asdfwc2', 'template_9w9z5pl', templateParams)
                 .then(function(response) {
                     showToast("Kode terkirim ke email!", "success");
@@ -671,24 +668,20 @@
             if (userOTP !== generatedOTP) { showToast("Kode OTP Salah!", "error"); return; }
             if (newPin.length < 4) { showToast("PIN Baru min 4 digit!", "error"); return; }
 
-            // 1. Enkripsi dan simpan ke Lokal (HP) lebih dulu
             profile.pin = await hashPIN(newPin); 
             saveProfileLocal();
-            generatedOTP = ""; // Hapus OTP dari memori
+            generatedOTP = ""; 
             
-            // 2. LANGSUNG tutup modal & kasih notif sukses (biar instan!)
             closeModal('otpVerifyModal');
             showToast("PIN Berhasil Direset!", "success");
             
-            // 3. Bersihkan kolom input untuk pemakaian berikutnya
             document.getElementById('inputOTP').value = '';
             document.getElementById('inputNewPinOTP').value = '';
 
-            // 4. Lakukan sinkronisasi ke server Supabase secara asinkron di latar belakang (tanpa memblokir layar)
             saveProfileToSupabase(); 
         }
 
-        // --- 1.6 SISTEM KEAMANAN LOKAL (ENKRIPSI AES & HASHING) ---
+        // --- 1.6 SISTEM KEAMANAN LOKAL (ENKRIPSI AES & HASHING FIX) ---
         const SECRET_KEY = "F1n4nc3_App_S3cur3_K3y_99";
 
         function saveLocalDB(data) {
@@ -717,12 +710,25 @@
             }
         }
 
+        // FIX UTAMA: Fungsi Hash PIN Anti-Crash di Hosting
         async function hashPIN(pin) {
             if (!pin) return '';
-            const msgBuffer = new TextEncoder().encode(pin);
-            const hashBuffer = await crypto.subtle.digest('SHA-256', msgBuffer);
-            const hashArray = Array.from(new Uint8Array(hashBuffer));
-            return hashArray.map(b => b.toString(16).padStart(2, '0')).join('');
+            try {
+                // Coba gunakan Web Crypto API (Hanya jalan di HTTPS / Secure Context)
+                if (window.crypto && window.crypto.subtle) {
+                    const msgBuffer = new TextEncoder().encode(pin);
+                    const hashBuffer = await crypto.subtle.digest('SHA-256', msgBuffer);
+                    const hashArray = Array.from(new Uint8Array(hashBuffer));
+                    return hashArray.map(b => b.toString(16).padStart(2, '0')).join('');
+                } else {
+                    // Fallback jika crypto.subtle diblokir browser saat di-hosting
+                    return CryptoJS.SHA256(pin).toString(CryptoJS.enc.Hex);
+                }
+            } catch (error) {
+                // Fallback kedua jika terjadi error tak terduga
+                console.warn("Native crypto gagal, menggunakan CryptoJS fallback.");
+                return CryptoJS.SHA256(pin).toString(CryptoJS.enc.Hex);
+            }
         }
 
         function saveProfileLocal() {
@@ -782,6 +788,7 @@
         let confirmAction = null;
         function openCustomConfirm(title, desc, action) { document.getElementById('confirmTitle').innerText = title; document.getElementById('confirmDesc').innerHTML = desc; confirmAction = action; document.getElementById('confirmModal').classList.add('active'); }
         document.getElementById('btnConfirmYes').addEventListener('click', () => { if(confirmAction) confirmAction(); closeModal('confirmModal'); });
+        
         // 4. PENYIMPANAN PROFIL & SANDI TRANSAKSI
         async function saveProfileToSupabase() { if (!currentUser) return; try { await sbClient.from('profiles').upsert({ id: currentUser.id, data: profile }); } catch(e) {} }
         function promptTxPin(callback) { pendingTxCallback = callback; const input = document.getElementById('inputTxPin'); input.value = ''; if (!profile.txPin) { document.getElementById('txPinTitle').innerText = "Buat Sandi Transaksi"; document.getElementById('txPinDesc').innerText = "Buat sandi khusus untuk pelunasan."; document.getElementById('btnVerifyTxPin').innerText = "Simpan & Lanjut"; } else { document.getElementById('txPinTitle').innerText = "Sandi Transaksi"; document.getElementById('txPinDesc').innerText = "Masukkan sandi transaksi Anda."; document.getElementById('btnVerifyTxPin').innerText = "Konfirmasi"; } document.getElementById('txPinModal').classList.add('active'); setTimeout(() => input.focus(), 300); }
@@ -827,7 +834,6 @@
         });
 
         document.getElementById('btnRealGoogleLogin').addEventListener('click', async () => { const { error } = await sbClient.auth.signInWithOAuth({ provider: 'google', options: { redirectTo: window.location.href } }); if (error) showToast("Gagal Login", "error"); else closeModal('googleAuthModal'); });
-        
         // 6. INTERAKSI UI DOM
         function switchWallet(type) { activeWallet = type; document.getElementById('walletSwitchContainer').setAttribute('data-active', type); renderShortcuts(); updateUI(document.getElementById('searchTxInput').value); }
         function toggleCustomSelect(id) { const box = document.getElementById(id); const isOpen = box.classList.contains('open'); document.querySelectorAll('.custom-options.open').forEach(el => el.classList.remove('open')); if(!isOpen) box.classList.add('open'); }
@@ -863,7 +869,6 @@
                         showToast("Logout berhasil", "success"); 
                         closeModal('profileViewModal'); 
                         
-                        // FIX LOGOUT: Refresh otomatis halaman untuk membersihkan sesi dari memori
                         setTimeout(() => { window.location.reload(); }, 800); 
                     }); 
                 }; 
@@ -885,6 +890,7 @@
         document.getElementById('editBirth').addEventListener('input', function(e) { let v = e.target.value.replace(/\D/g, ''); if (v.length > 8) v = v.substring(0, 8); let hari = v.substring(0, 2); let bulan = v.substring(2, 4); let tahun = v.substring(4, 8); if (hari.length === 2 && parseInt(hari) > 31) hari = '31'; if (hari.length === 2 && parseInt(hari) === 0) hari = '01'; if (bulan.length === 2 && parseInt(bulan) > 12) bulan = '12'; if (bulan.length === 2 && parseInt(bulan) === 0) bulan = '01'; let finalFormat = hari; if (v.length >= 3) finalFormat += '/' + bulan; if (v.length >= 5) finalFormat += '/' + tahun; e.target.value = finalFormat; });
         async function saveProfileData() { profile.name = smartCapitalize(document.getElementById('editName').value.trim()) || 'Guest'; profile.gender = document.getElementById('editGender').value; profile.birthDate = document.getElementById('editBirth').value; const rawPin = document.getElementById('editPin').value; if (rawPin && rawPin.trim() !== '') { profile.pin = await hashPIN(rawPin); } saveProfileLocal(); await saveProfileToSupabase(); initAppHeader(); closeModal('profileEditModal'); showToast("Profil Disimpan"); }
         async function executeFactoryReset() { if (!currentUser) return; showToast("Memulai format...", "success"); db = []; localStorage.removeItem('finance_modern_db_secure'); try { const { error } = await sbClient.from('transactions').delete().eq('user_id', currentUser.id); if (error) throw error; showToast("Database musnah.", "success"); } catch (e) { showToast("Gagal reset.", "error"); } closeModal('resetConfirmModal'); updateUI(document.getElementById('searchTxInput').value); }
+        
         // 8. INPUT TRANSAKSI LOGIC
         let isLoanMode = false;
         function quickInput(type, cat, desc, isLoan = false) { 
