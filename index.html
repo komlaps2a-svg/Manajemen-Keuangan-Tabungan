@@ -106,7 +106,6 @@
         .insight-box span { font-size: 11.5px; line-height: 1.5; display: -webkit-box; -webkit-line-clamp: 4; -webkit-box-orient: vertical; overflow: hidden; text-overflow: ellipsis; text-align: left; width: 100%; word-wrap: break-word; margin: 0; padding: 0; }
         .fade-transition { transition: opacity 0.4s ease-in-out; opacity: 1; }
         .fade-out { opacity: 0; }
-
         /* === EXPANDABLE FLEX GRID === */
         .expand-container { display: flex; gap: 10px; width: 100%; margin-bottom: 15px; transition: all 0.5s cubic-bezier(0.25, 1, 0.5, 1); }
         .expand-container:has(.expanded) { gap: 0; }
@@ -360,12 +359,12 @@
                 <div class="prof-detail-box"><span class="prof-detail-label">Total Pemasukan</span><p class="prof-detail-val text-hijau" id="viewTotalMasuk">Rp 0</p></div>
                 <div class="prof-detail-box"><span class="prof-detail-label">Total Pengeluaran</span><p class="prof-detail-val text-merah" id="viewTotalKeluar">Rp 0</p></div>
                 
-                <div class="prof-detail-box" style="grid-column: span 2; display:flex; justify-content:space-between; align-items:center; border-color:#4285F4;">
-                    <div style="text-align: left;">
+                <div class="prof-detail-box" style="grid-column: span 2; display:flex; justify-content:space-between; align-items:center; border-color:#4285F4; gap: 10px;">
+                    <div style="text-align: left; flex: 1; min-width: 0;">
                         <span class="prof-detail-label">Status Akun</span>
-                        <p class="prof-detail-val" id="viewGoogleStatus" style="color:var(--text-muted); font-size: 13px;">Tidak Terhubung</p>
+                        <p class="prof-detail-val" id="viewGoogleStatus" style="color:var(--text-muted); font-size: 13px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;">Tidak Terhubung</p>
                     </div>
-                    <button id="btnGoogleLink" class="btn-quick glow-biru" style="padding: 8px 12px; font-size:11px; border-color:#4285F4; color:#4285F4;" onclick="openGoogleAuthModal()">
+                    <button id="btnGoogleLink" class="btn-quick glow-biru" style="padding: 8px 12px; font-size:11px; border-color:#4285F4; color:#4285F4; flex-shrink: 0;" onclick="openGoogleAuthModal()">
                         <svg width="14" height="14" viewBox="0 0 24 24" fill="currentColor"><path d="M12.24 10.285V14.4h6.806c-.275 1.765-2.056 5.174-6.806 5.174-4.095 0-7.439-3.389-7.439-7.574s3.345-7.574 7.439-7.574c2.33 0 3.891.989 4.785 1.849l3.254-3.138C18.189 1.186 15.479 0 12.24 0c-6.635 0-12 5.365-12 12s5.365 12 12 12c6.926 0 11.52-4.869 11.52-11.726 0-.788-.085-1.39-.189-1.989H12.24z"/></svg> 
                         <span id="textGoogleLink">Hubungkan</span>
                     </button>
@@ -664,7 +663,7 @@
                 });
         }
 
-                async function verifyOTPAndSavePin() {
+        async function verifyOTPAndSavePin() {
             const userOTP = document.getElementById('inputOTP').value;
             const newPin = document.getElementById('inputNewPinOTP').value;
 
@@ -855,7 +854,19 @@
             const stat = document.getElementById('viewGoogleStatus'); const btnText = document.getElementById('textGoogleLink'); const btn = document.getElementById('btnGoogleLink'); 
             if(currentUser) { 
                 stat.innerHTML = `<span style="color:var(--hijau); font-weight:700;">${currentUser.email}</span>`; btnText.innerText = "Logout"; btn.style.borderColor = "var(--merah)"; btn.style.color = "var(--merah)"; 
-                btn.onclick = async () => { openCustomConfirm("Logout Akun", "Logout dari Cloud?", async () => { await sbClient.auth.signOut(); profile.googleLinked = false; profile.googleEmail = ''; saveProfileLocal(); showToast("Logout berhasil", "success"); closeModal('profileViewModal'); }); }; 
+                btn.onclick = async () => { 
+                    openCustomConfirm("Logout Akun", "Logout dari Cloud?", async () => { 
+                        await sbClient.auth.signOut(); 
+                        profile.googleLinked = false; 
+                        profile.googleEmail = ''; 
+                        saveProfileLocal(); 
+                        showToast("Logout berhasil", "success"); 
+                        closeModal('profileViewModal'); 
+                        
+                        // FIX LOGOUT: Refresh otomatis halaman untuk membersihkan sesi dari memori
+                        setTimeout(() => { window.location.reload(); }, 800); 
+                    }); 
+                }; 
             } else { stat.innerText = "Tidak Terhubung"; stat.style.color = "var(--text-muted)"; btnText.innerText = "Hubungkan"; btn.style.borderColor = "#4285F4"; btn.style.color = "#4285F4"; btn.onclick = openGoogleAuthModal; } 
             document.getElementById('profileViewModal').classList.add('active'); 
         }
@@ -874,7 +885,6 @@
         document.getElementById('editBirth').addEventListener('input', function(e) { let v = e.target.value.replace(/\D/g, ''); if (v.length > 8) v = v.substring(0, 8); let hari = v.substring(0, 2); let bulan = v.substring(2, 4); let tahun = v.substring(4, 8); if (hari.length === 2 && parseInt(hari) > 31) hari = '31'; if (hari.length === 2 && parseInt(hari) === 0) hari = '01'; if (bulan.length === 2 && parseInt(bulan) > 12) bulan = '12'; if (bulan.length === 2 && parseInt(bulan) === 0) bulan = '01'; let finalFormat = hari; if (v.length >= 3) finalFormat += '/' + bulan; if (v.length >= 5) finalFormat += '/' + tahun; e.target.value = finalFormat; });
         async function saveProfileData() { profile.name = smartCapitalize(document.getElementById('editName').value.trim()) || 'Guest'; profile.gender = document.getElementById('editGender').value; profile.birthDate = document.getElementById('editBirth').value; const rawPin = document.getElementById('editPin').value; if (rawPin && rawPin.trim() !== '') { profile.pin = await hashPIN(rawPin); } saveProfileLocal(); await saveProfileToSupabase(); initAppHeader(); closeModal('profileEditModal'); showToast("Profil Disimpan"); }
         async function executeFactoryReset() { if (!currentUser) return; showToast("Memulai format...", "success"); db = []; localStorage.removeItem('finance_modern_db_secure'); try { const { error } = await sbClient.from('transactions').delete().eq('user_id', currentUser.id); if (error) throw error; showToast("Database musnah.", "success"); } catch (e) { showToast("Gagal reset.", "error"); } closeModal('resetConfirmModal'); updateUI(document.getElementById('searchTxInput').value); }
-
         // 8. INPUT TRANSAKSI LOGIC
         let isLoanMode = false;
         function quickInput(type, cat, desc, isLoan = false) { 
