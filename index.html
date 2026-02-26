@@ -3,7 +3,12 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-    <title>Enterprise Finance Dashboard v17.2 (Stable) - Supabase Edition</title>
+    
+    <meta http-equiv="Cache-Control" content="no-cache, no-store, must-revalidate">
+    <meta http-equiv="Pragma" content="no-cache">
+    <meta http-equiv="Expires" content="0">
+    
+    <title>Enterprise Finance Dashboard v17.3 (Auto-Sync Fix)</title>
     <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800;900&display=swap" rel="stylesheet">
     
     <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
@@ -188,6 +193,7 @@
         .modal-overlay.active { opacity: 1; visibility: visible; }
         .modal-card { background: var(--hitam-card); border: 1px solid var(--border); border-radius: 20px; width: 100%; max-width: 400px; padding: 30px; box-shadow: 0 25px 50px -12px rgba(0, 0, 0, 0.9); transform: scale(0.9) translateY(20px); opacity: 0; transition: all 0.4s cubic-bezier(0.175, 0.885, 0.32, 1.275); margin: auto; position: relative; overflow: visible; }
         .modal-overlay.active .modal-card { transform: scale(1) translateY(0); opacity: 1; }
+        
         .receipt-card { background: #0f172a; border: 2px dashed #334155; border-radius: 12px; padding: 25px; text-align: left; position: relative; margin-bottom: 15px;}
         .receipt-card::before, .receipt-card::after { content: ''; position: absolute; width: 20px; height: 20px; background: rgba(5, 8, 20, 0.9); border-radius: 50%; top: 60px; }
         .receipt-card::before { left: -12px; border-right: 2px dashed #334155; }
@@ -615,55 +621,33 @@
         let otpExpiryTime = 0;
 
         function startOTPResetProcess() {
-            closeModal('pinAuthModal');
-            closeModal('resetPinModal');
-            closeModal('resetTxPinAuthModal');
-            
-            if (!currentUser || !profile.googleEmail) {
-                showToast("Akun belum terhubung Google! Tidak bisa reset.", "error");
-                return;
-            }
-            
+            closeModal('pinAuthModal'); closeModal('resetPinModal'); closeModal('resetTxPinAuthModal');
+            if (!currentUser || !profile.googleEmail) { showToast("Akun belum terhubung Google!", "error"); return; }
             document.getElementById('displayUserEmail').innerText = profile.googleEmail;
             document.getElementById('otpRequestModal').classList.add('active');
         }
 
         function sendOTPEmail() {
             const btn = document.getElementById('btnSendOTP');
-            btn.innerText = "Mengirim...";
-            btn.disabled = true;
-
+            btn.innerText = "Mengirim..."; btn.disabled = true;
             generatedOTP = Math.floor(100000 + Math.random() * 900000).toString();
             otpExpiryTime = Date.now() + (5 * 60 * 1000); // 5 menit
 
-            const templateParams = {
-                to_email: profile.googleEmail,
-                otp_code: generatedOTP
-            };
-
-            emailjs.send('service_asdfwc2', 'template_9w9z5pl', templateParams)
-                .then(function(response) {
-                    showToast("Kode terkirim ke email!", "success");
-                    closeModal('otpRequestModal');
-                    
-                    document.getElementById('inputOTP').value = '';
-                    document.getElementById('inputNewPinOTP').value = '';
+            emailjs.send('service_asdfwc2', 'template_9w9z5pl', { to_email: profile.googleEmail, otp_code: generatedOTP })
+                .then(function() {
+                    showToast("Kode terkirim ke email!", "success"); closeModal('otpRequestModal');
+                    document.getElementById('inputOTP').value = ''; document.getElementById('inputNewPinOTP').value = '';
                     document.getElementById('otpVerifyModal').classList.add('active');
-                    
-                    btn.innerText = "Kirim Kode Sekarang";
-                    btn.disabled = false;
+                    btn.innerText = "Kirim Kode Sekarang"; btn.disabled = false;
                 }, function(error) {
-                    showToast("Gagal mengirim email.", "error");
-                    console.log('FAILED...', error);
-                    btn.innerText = "Kirim Kode Sekarang";
-                    btn.disabled = false;
+                    showToast("Gagal mengirim email.", "error"); console.log('FAILED...', error);
+                    btn.innerText = "Kirim Kode Sekarang"; btn.disabled = false;
                 });
         }
 
         async function verifyOTPAndSavePin() {
             const userOTP = document.getElementById('inputOTP').value;
             const newPin = document.getElementById('inputNewPinOTP').value;
-
             if (Date.now() > otpExpiryTime) { showToast("Kode OTP kedaluwarsa!", "error"); return; }
             if (userOTP !== generatedOTP) { showToast("Kode OTP Salah!", "error"); return; }
             if (newPin.length < 4) { showToast("PIN Baru min 4 digit!", "error"); return; }
@@ -671,13 +655,8 @@
             profile.pin = await hashPIN(newPin); 
             saveProfileLocal();
             generatedOTP = ""; 
-            
-            closeModal('otpVerifyModal');
-            showToast("PIN Berhasil Direset!", "success");
-            
-            document.getElementById('inputOTP').value = '';
-            document.getElementById('inputNewPinOTP').value = '';
-
+            closeModal('otpVerifyModal'); showToast("PIN Berhasil Direset!", "success");
+            document.getElementById('inputOTP').value = ''; document.getElementById('inputNewPinOTP').value = '';
             saveProfileToSupabase(); 
         }
 
@@ -694,39 +673,28 @@
             const ciphertext = localStorage.getItem('finance_modern_db_secure');
             if (!ciphertext) {
                 const oldData = localStorage.getItem('finance_modern_db');
-                if (oldData) {
-                    const parsed = JSON.parse(oldData);
-                    saveLocalDB(parsed);
-                    return parsed;
-                }
+                if (oldData) { const parsed = JSON.parse(oldData); saveLocalDB(parsed); return parsed; }
                 return [];
             }
-            try {
-                const bytes = CryptoJS.AES.decrypt(ciphertext, SECRET_KEY);
-                return JSON.parse(bytes.toString(CryptoJS.enc.Utf8));
-            } catch (e) {
-                console.error("Gagal dekripsi database lokal!");
-                return [];
-            }
+            try { return JSON.parse(CryptoJS.AES.decrypt(ciphertext, SECRET_KEY).toString(CryptoJS.enc.Utf8)); } 
+            catch (e) { return []; }
         }
 
-        // FIX UTAMA: Fungsi Hash PIN Anti-Crash di Hosting
+        // FIX UTAMA 1: Hash PIN Anti-Crash di Hosting
         async function hashPIN(pin) {
             if (!pin) return '';
             try {
-                // Coba gunakan Web Crypto API (Hanya jalan di HTTPS / Secure Context)
-                if (window.crypto && window.crypto.subtle) {
+                // Cek apakah browser mendukung fitur Secure Crypto (HTTPS)
+                if (window.crypto && window.crypto.subtle && window.isSecureContext) {
                     const msgBuffer = new TextEncoder().encode(pin);
                     const hashBuffer = await crypto.subtle.digest('SHA-256', msgBuffer);
                     const hashArray = Array.from(new Uint8Array(hashBuffer));
                     return hashArray.map(b => b.toString(16).padStart(2, '0')).join('');
                 } else {
-                    // Fallback jika crypto.subtle diblokir browser saat di-hosting
+                    // Jika diblokir (misal dibuka via file lokal atau tanpa HTTPS), gunakan CryptoJS Fallback
                     return CryptoJS.SHA256(pin).toString(CryptoJS.enc.Hex);
                 }
             } catch (error) {
-                // Fallback kedua jika terjadi error tak terduga
-                console.warn("Native crypto gagal, menggunakan CryptoJS fallback.");
                 return CryptoJS.SHA256(pin).toString(CryptoJS.enc.Hex);
             }
         }
@@ -738,16 +706,9 @@
 
         // 2. GLOBAL STATE & DATA
         let db = loadLocalDB(); 
-        let currentUser = null;
-        let activeWallet = 'harian';
-        let currentTimeFilter = 365; 
-        let rawAmount = 0;
-        let pieChart, barChart, lineChart;
-        let pendingTxCallback = null;
-        let aiMessages = [];
-        let aiCurrentMsgIdx = 0;
-        let aiCarouselInterval = null;
-        let realTimeSubscription = null;
+        let currentUser = null; let activeWallet = 'harian'; let currentTimeFilter = 365; let rawAmount = 0;
+        let pieChart, barChart, lineChart; let pendingTxCallback = null;
+        let aiMessages = []; let aiCurrentMsgIdx = 0; let aiCarouselInterval = null; let realTimeSubscription = null;
 
         const defaultProfile = { 
             name: 'Guest', pin: '', txPin: '',
@@ -816,11 +777,23 @@
             if (currentUser) { 
                 let lDb = loadLocalDB(); let unsynced = lDb.filter(t => !t.user_id || typeof t.id === 'number'); 
                 if(unsynced.length > 0) { showToast("Koneksi pulih. Menyelaraskan...", "success"); for (let t of unsynced) { let txData = { ...t, user_id: currentUser.id }; if(txData.id && typeof txData.id === 'number') delete txData.id; await sbClient.from('transactions').insert([txData]); } fetchUserTransactions(); } 
+                else if (db.length === 0) fetchUserTransactions(); // Coba tarik ulang kalau kosong
             } 
         });
         window.addEventListener('offline', () => { document.getElementById('networkStatus').innerText = "Offline Mode (Lokal)"; document.getElementById('networkStatus').className = "status-sync sync-offline"; });
 
         sbClient.auth.onAuthStateChange(async (event, session) => {
+            // FIX UTAMA 2: Hancurkan semua data secara paksa saat Sign Out!
+            if (event === 'SIGNED_OUT') {
+                currentUser = null;
+                localStorage.clear(); // Bersihkan memori HP dari akun lama
+                db = [];
+                profile = defaultProfile;
+                // Bersihkan URL dari sisa token dan paksa refresh tanpa cache
+                window.location.replace(window.location.origin + window.location.pathname);
+                return;
+            }
+
             if (session && session.user) {
                 currentUser = session.user; document.getElementById('networkStatus').innerText = navigator.onLine ? "Online Mode (Cloud)" : "Offline Mode (Lokal)"; document.getElementById('networkStatus').className = navigator.onLine ? "status-sync sync-online" : "status-sync sync-offline"; 
                 const { data: profileData } = await sbClient.from('profiles').select('data').eq('id', currentUser.id).single();
@@ -833,7 +806,7 @@
             }
         });
 
-        document.getElementById('btnRealGoogleLogin').addEventListener('click', async () => { const { error } = await sbClient.auth.signInWithOAuth({ provider: 'google', options: { redirectTo: window.location.href } }); if (error) showToast("Gagal Login", "error"); else closeModal('googleAuthModal'); });
+        document.getElementById('btnRealGoogleLogin').addEventListener('click', async () => { const { error } = await sbClient.auth.signInWithOAuth({ provider: 'google', options: { redirectTo: window.location.origin + window.location.pathname } }); if (error) showToast("Gagal Login", "error"); else closeModal('googleAuthModal'); });
         // 6. INTERAKSI UI DOM
         function switchWallet(type) { activeWallet = type; document.getElementById('walletSwitchContainer').setAttribute('data-active', type); renderShortcuts(); updateUI(document.getElementById('searchTxInput').value); }
         function toggleCustomSelect(id) { const box = document.getElementById(id); const isOpen = box.classList.contains('open'); document.querySelectorAll('.custom-options.open').forEach(el => el.classList.remove('open')); if(!isOpen) box.classList.add('open'); }
@@ -862,14 +835,9 @@
                 stat.innerHTML = `<span style="color:var(--hijau); font-weight:700;">${currentUser.email}</span>`; btnText.innerText = "Logout"; btn.style.borderColor = "var(--merah)"; btn.style.color = "var(--merah)"; 
                 btn.onclick = async () => { 
                     openCustomConfirm("Logout Akun", "Logout dari Cloud?", async () => { 
+                        // Proses total wipeout dipicu oleh event onAuthStateChange di Bagian 4
                         await sbClient.auth.signOut(); 
-                        profile.googleLinked = false; 
-                        profile.googleEmail = ''; 
-                        saveProfileLocal(); 
-                        showToast("Logout berhasil", "success"); 
                         closeModal('profileViewModal'); 
-                        
-                        setTimeout(() => { window.location.reload(); }, 800); 
                     }); 
                 }; 
             } else { stat.innerText = "Tidak Terhubung"; stat.style.color = "var(--text-muted)"; btnText.innerText = "Hubungkan"; btn.style.borderColor = "#4285F4"; btn.style.color = "#4285F4"; btn.onclick = openGoogleAuthModal; } 
@@ -911,7 +879,12 @@
                     const tx = db[idx]; const targetWallet = tx.wallet; const walletName = targetWallet === 'harian' ? 'Dompet Harian' : 'Tabungan'; 
                     openCustomConfirm("Pelunasan Pinjaman", `Uang senilai <b>${formatRp(tx.amount)}</b> dari <b>${tx.borrower}</b> sudah lunas ke <b>${walletName}</b>?`, async () => { 
                         const deskripsiLunas = `Lunas: ${tx.desc} (${tx.borrower})`; const lData = { wallet: targetWallet, type: 'masuk', category: 'Lunas Pinjaman', desc: deskripsiLunas, borrower: tx.borrower, amount: tx.amount, date: new Date().toISOString() }; 
-                        if(currentUser) { lData.user_id = currentUser.id; await sbClient.from('transactions').update({ status: 'lunas_pinjaman' }).eq('id', tx.id); await sbClient.from('transactions').insert([lData]); fetchUserTransactions(); } 
+                        if(currentUser) { 
+                            lData.user_id = currentUser.id; 
+                            await sbClient.from('transactions').update({ status: 'lunas_pinjaman' }).eq('id', tx.id); 
+                            await sbClient.from('transactions').insert([lData]); 
+                            await fetchUserTransactions(); // FIX 3: Aggressive UI Refresh
+                        } 
                         else { db[idx].status = 'lunas_pinjaman'; lData.id = Date.now(); db.push(lData); saveLocalDB(db); updateUI(document.getElementById('searchTxInput').value); } 
                         showToast(`Pinjaman Lunas`, "success"); 
                     }); 
@@ -981,7 +954,11 @@
             if(currentUser) { 
                 try { 
                     const payload = txToSave.map(t => { let data = { ...t, user_id: currentUser.id }; delete data.id; return data; });
-                    const { error } = await sbClient.from('transactions').insert(payload); if(error) throw error;
+                    const { error } = await sbClient.from('transactions').insert(payload); 
+                    if(error) throw error;
+                    
+                    // FIX 3: AGGRESSIVE UI REFRESH. Langsung ambil data terbaru dan render ulang.
+                    await fetchUserTransactions(); 
                     if(txToSave.some(t => t.wallet === 'harian' && t.type === 'masuk')) checkAndAutoLunasHutang(); 
                     closeModal('txModal'); showToast("Proses server berhasil"); 
                 } catch(e) { showToast("Error menyimpan", "error"); console.error("Supabase Insert Error:", e); } 
@@ -1093,7 +1070,9 @@
             });
         }
 
+        // FIX 4: Mencegah grafik error saat Offline Mode (Data Kosong)
         function renderCharts(data) {
+            if (!document.getElementById('pieChart')) return; // Mencegah crash jika canvas belum termuat
             Chart.defaults.color = '#64748b'; Chart.defaults.font.family = 'Inter';
             
             const cA = {}; data.forEach(t => { const k = `${t.category}`; if(cA[k]) { cA[k].a += t.amount; } else { cA[k] = { a: t.amount, color: getDynamicColor(t.category, t.type) }; } }); const pL = Object.keys(cA);
