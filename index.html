@@ -4,9 +4,9 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
     
-    <meta http-equiv="Cache-Control" content="no-store, no-cache, must-revalidate, max-age=0">
-    <meta http-equiv="Pragma" content="no-cache">
-    <meta http-equiv="Expires" content="0">
+    <link rel="manifest" href="manifest.json">
+    <meta name="theme-color" content="#0a1128">
+    <link rel="apple-touch-icon" href="icon-192x192.png">
     
     <title>Enterprise Finance Dashboard v26.0 (Full Offline POS-Style)</title>
     <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800;900&display=swap" rel="stylesheet">
@@ -332,7 +332,6 @@
             <p class="card-value text-merah" id="disp-keluar" data-short="Rp 0" data-full="Rp 0"></p>
         </div>
     </div>
-
     <div class="section-header" onclick="toggleSection('chartsSection', 'chartToggleIcon')">
         <h2 class="section-title">Analitik Visual</h2>
         <svg id="chartToggleIcon" class="toggle-icon rotated" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="m6 9 6 6 6-6"/></svg>
@@ -1538,7 +1537,6 @@
                 document.getElementById('tx-is-saving').value = 'false'; 
             }
         });
-
         // ==========================================
         // 11. RENDER UI, AI ENGINE & GRAFIK
         // ==========================================
@@ -1767,7 +1765,7 @@
         }
 
         // ==========================================
-        // 13. NYALAKAN MESIN UTAMA & PEMBERITAHUAN SUPPORT
+        // 13. NYALAKAN MESIN UTAMA & DAFTARKAN PWA/OFFLINE
         // ==========================================
         window.addEventListener('load', () => {
             bootApp();
@@ -1776,6 +1774,17 @@
             setTimeout(() => {
                 showToast(`Suka dengan aplikasi ini? Yuk <b style="color:var(--kuning);">Dukung Developer</b> dengan cara traktir di menu Profil! ☕`, "syncing");
             }, 15000);
+            
+            // Registrasi Service Worker untuk Full Offline Mode
+            if ('serviceWorker' in navigator) {
+                navigator.serviceWorker.register('service-worker.js')
+                .then(registration => {
+                    console.log('Service Worker berhasil didaftarkan:', registration.scope);
+                })
+                .catch(error => {
+                    console.log('Service Worker gagal didaftarkan:', error);
+                });
+            }
         });
 
     </script>
