@@ -657,7 +657,7 @@
         // ==========================================
         // 1. SISTEM AUTO-UPDATE & SMART CACHE BUSTER
         // ==========================================
-        const APP_VERSION = '27.0'; // Hard update version
+        const APP_VERSION = '27.1'; // Hard update version
         
         function checkAppVersion() {
             const savedVersion = localStorage.getItem('finance_app_version');
@@ -821,7 +821,7 @@
             setTimeout(initSupabaseBackground, 500);
         }
 
-        // Fungsi khusus logout untuk membersihkan profil hingga ke akar
+                // Fungsi khusus logout untuk membersihkan profil hingga ke akar
         function forceLogoutToGuest() {
             currentUser = null;
             APP_MODE = 'GUEST';
@@ -832,12 +832,16 @@
             profile = { ...defaultProfile };
             saveProfileLocal();
             
-            db = loadLocalDB(); // Pindah ke brankas kosong Guest
+            // TAMBAHAN FIX: HANCURKAN DATA GUEST LAMA SUPAYA KEMBALI NOL
+            localStorage.removeItem('finance_guest_db_secure');
+            localStorage.removeItem('finance_guest_db_secure_fallback');
+            db = []; // Kosongkan memori saat ini
+            
             initAppHeader();
             if(typeof renderShortcuts === 'function') renderShortcuts(); 
-            if(typeof updateUI === 'function') updateUI('');
+            if(typeof updateUI === 'function') updateUI(''); // Ini akan merender angka 0
             
-            showToast("Berhasil Logout. Kembali ke Guest.", "success");
+            showToast("Berhasil Logout. Kembali ke Guest (Nol).", "success");
             closeModal('profileViewModal');
             
             const netStatus = document.getElementById('networkStatus');
