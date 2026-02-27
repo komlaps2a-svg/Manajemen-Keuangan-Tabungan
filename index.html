@@ -8,7 +8,7 @@
     <meta http-equiv="Pragma" content="no-cache">
     <meta http-equiv="Expires" content="0">
     
-    <title>Enterprise Finance Dashboard v19.0 (Ultimate PWA)</title>
+    <title>Enterprise Finance Dashboard v20.0 (Ultimate PWA)</title>
     <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800;900&display=swap" rel="stylesheet">
     
     <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
@@ -382,7 +382,6 @@
             </table>
         </div>
     </div>
-
     <div class="modal-overlay" id="profileViewModal">
         <div class="modal-card">
             <div style="text-align: center; margin-bottom: 25px; position: relative;">
@@ -651,7 +650,7 @@
         // ==========================================
         // 1. SISTEM AUTO-UPDATE & VERSI
         // ==========================================
-        const APP_VERSION = '19.1'; // Update versi untuk trigger refresh cache
+        const APP_VERSION = '20.1'; // Naik versi untuk paksa cache baru
         
         function checkAppVersion() {
             const savedVersion = localStorage.getItem('finance_app_version');
@@ -669,7 +668,7 @@
         checkAppVersion();
 
         // ==========================================
-        // 2. VARIABEL GLOBAL & FLAG OFFLINE (SOLUSI BUG FREEZE)
+        // 2. VARIABEL GLOBAL & FLAG OFFLINE (SOLUSI ANTI-FREEZE)
         // ==========================================
         let sbClient = null;
         let db = []; 
@@ -698,7 +697,6 @@
         };
         let profile = JSON.parse(localStorage.getItem('user_profile_secure_v2')) || defaultProfile;
 
-        // Data Kategori & SVGs
         const svgs = {
             makan: `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 2v20M17 5H9.5a3.5 3.5 0 0 0 0 7h5a3.5 3.5 0 0 1 0 7H6"/></svg>`,
             transport: `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="11" width="18" height="10" rx="2"/><circle cx="7" cy="16" r="1"/><circle cx="17" cy="16" r="1"/><path d="M14 11V7a2 2 0 0 0-2-2H8a2 2 0 0 0-2 2v4"/></svg>`,
@@ -727,7 +725,7 @@
         const SECRET_KEY = "F1n4nc3_App_S3cur3_K3y_99";
 
         function getDBKey() {
-            // Gunakan wasLoggedIn jika currentUser belum ke-set (kasus offline)
+            // Cerdas ngebaca memori: Walau offline, kalau pernah login, pakai brankas Cloud.
             return (currentUser || wasLoggedIn) ? 'finance_cloud_db_secure' : 'finance_guest_db_secure';
         }
 
@@ -788,10 +786,7 @@
         }
 
         async function processPendingSync() {
-            if (!navigator.onLine || !currentUser || !sbClient || pendingSync.length === 0) return;
-            // Cegah dummy offline user melakukan sync
-            if (currentUser.id === 'offline_user') return; 
-            
+            if (!navigator.onLine || !currentUser || currentUser.id === 'offline_user' || !sbClient || pendingSync.length === 0) return;
             try {
                 showToast("Menyinkronkan data offline...", "syncing");
                 const payload = pendingSync.map(t => { 
@@ -799,10 +794,8 @@
                     if(newData.id && String(newData.id).length > 10) delete newData.id; 
                     return newData; 
                 });
-                
                 const { error } = await sbClient.from('transactions').insert(payload);
                 if (error) throw error;
-                
                 pendingSync = [];
                 savePendingSync();
                 showToast("Data offline tersimpan ke Cloud!", "success");
@@ -812,135 +805,13 @@
             }
         }
 
-        async function bootApp() {
-            if(typeof renderShortcuts === 'function') renderShortcuts(); 
-            
-            // JIKA SCRIPT CDN SUPABASE GAGAL DIMUAT (PURE OFFLINE / BLOCKER)
-            if (typeof window.supabase === 'undefined') {
-                if (wasLoggedIn) {
-                    // Pura-pura login pakai dummy object agar logic "cloud offline" jalan
-                    currentUser = { id: 'offline_user', email: profile.googleEmail || 'Offline User' };
-                    db = loadLocalDB(false); // Load cache Cloud
-                    const netStatus = document.getElementById('networkStatus');
-                    if(netStatus) { netStatus.innerText = "Offline Mode (Cloud)"; netStatus.className = "status-sync sync-offline"; }
-                } else {
-                    // Murni Guest
-                    currentUser = null;
-                    db = loadLocalDB(true); // Load cache Guest
-                    const netStatus = document.getElementById('networkStatus');
-                    if(netStatus) { netStatus.innerText = "Offline Mode (Guest)"; netStatus.className = "status-sync sync-offline"; }
-                }
-                
-                initAppHeader();
-                if(typeof updateUI === 'function') updateUI('');
-                return; // Berhenti di sini, jangan jalankan script Supabase
-            }
-
-            // JIKA ONLINE / SCRIPT CDN SUPABASE TERSEDIA
-            const supabaseUrl = 'https://kkbfppuxuwcbapexlqsx.supabase.co';
-            const supabaseKey = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImtrYmZwcHV4dXdjYmFwZXhscXN4Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzIwMDMwODAsImV4cCI6MjA4NzU3OTA4MH0.pOGHpiR333Ltp2g3BQvV8xSMbdbMeRMHJ3ZgecHDRzM';
-            sbClient = window.supabase.createClient(supabaseUrl, supabaseKey);
-
-            // CEK SESSION SECARA SYNCHRONOUS SEBELUM RENDER UI (Solusi Bug Refresh)
-            const { data: { session } } = await sbClient.auth.getSession();
-            
-            if (session && session.user) {
-                currentUser = session.user;
-                localStorage.setItem('finance_was_logged_in', 'true');
-                wasLoggedIn = true;
-                
-                db = loadLocalDB(false); // Render cache lokal dulu biar cepat
-                initAppHeader();
-                
-                const netStatus = document.getElementById('networkStatus');
-                if(netStatus) { netStatus.innerText = navigator.onLine ? "Online Mode (Cloud)" : "Offline Mode (Cloud)"; netStatus.className = navigator.onLine ? "status-sync sync-online" : "status-sync sync-offline"; }
-                
-                fetchUserTransactions(); // Fetch data real-time dari server di background
-                setupRealtime();
-                
-                if (navigator.onLine && pendingSync.length > 0) processPendingSync();
-            } else {
-                currentUser = null;
-                localStorage.setItem('finance_was_logged_in', 'false');
-                wasLoggedIn = false;
-                
-                db = loadLocalDB(true);
-                initAppHeader();
-                
-                const netStatus = document.getElementById('networkStatus');
-                if(netStatus) { netStatus.innerText = navigator.onLine ? "Online Mode (Guest)" : "Offline Mode (Guest)"; netStatus.className = navigator.onLine ? "status-sync sync-online" : "status-sync sync-offline"; }
-            }
-            
-            if(typeof updateUI === 'function') updateUI('');
-
-            // LISTENER PERUBAHAN OTOMATIS (Login baru / Logout)
-            sbClient.auth.onAuthStateChange(async (event, currentSession) => {
-                if (event === 'SIGNED_OUT') {
-                    currentUser = null;
-                    localStorage.setItem('finance_was_logged_in', 'false');
-                    wasLoggedIn = false;
-                    
-                    profile.googleLinked = false; 
-                    profile.googleEmail = '';
-                    db = loadLocalDB(true); // Paksa Load Brankas Guest
-                    
-                    initAppHeader();
-                    if(typeof renderShortcuts === 'function') renderShortcuts(); 
-                    if(typeof updateUI === 'function') updateUI('');
-                    showToast("Berhasil Logout. Mode Guest.", "success");
-                    closeModal('profileViewModal');
-                    
-                    const netStatus = document.getElementById('networkStatus');
-                    if(netStatus) { netStatus.innerText = navigator.onLine ? "Online Mode (Guest)" : "Offline Mode (Guest)"; netStatus.className = navigator.onLine ? "status-sync sync-online" : "status-sync sync-offline"; }
-                } else if (event === 'SIGNED_IN' && currentSession) {
-                    // Logic ketika user baru saja masuk
-                    currentUser = currentSession.user; 
-                    localStorage.setItem('finance_was_logged_in', 'true');
-                    wasLoggedIn = true;
-                    
-                    const netStatus = document.getElementById('networkStatus');
-                    if(netStatus) { netStatus.innerText = navigator.onLine ? "Online Mode (Cloud)" : "Offline Mode (Cloud)"; netStatus.className = navigator.onLine ? "status-sync sync-online" : "status-sync sync-offline"; }
-                    
-                    try {
-                        const { data: profileData } = await sbClient.from('profiles').select('data').eq('id', currentUser.id).single();
-                        if (profileData && profileData.data) { profile = { ...profile, ...profileData.data }; } 
-                        else { 
-                            if(profile.name === 'Guest') profile.name = properTitleCase(currentUser.user_metadata?.full_name) || 'Member'; 
-                            profile.photo = currentUser.user_metadata?.avatar_url || profile.photo; 
-                            await saveProfileToSupabase(); 
-                        }
-                    } catch(e) {}
-                    
-                    profile.googleLinked = true; profile.googleEmail = currentUser.email; 
-                    
-                    db = loadLocalDB(false); 
-                    initAppHeader(); 
-                    if(typeof renderShortcuts === 'function') renderShortcuts(); 
-                    fetchUserTransactions(); 
-                    setupRealtime();
-                    closeModal('googleAuthModal');
-                    
-                    if (navigator.onLine && pendingSync.length > 0) processPendingSync();
-                }
-            });
-
-            if (typeof window.emailjs !== 'undefined') { window.emailjs.init("qcqCpH81lqwQKw_MG"); }
-        }
-
-        // ==========================================
-        // 5. SINKRONISASI DATABASE (FETCH CLOUD)
-        // ==========================================
         async function fetchUserTransactions() {
-            // Bypass fetch kalau lagi mode offline murni (dummy user) atau belum login
             if (!currentUser || currentUser.id === 'offline_user' || !sbClient) return;
-            
             try {
                 if (!navigator.onLine) throw new Error("Offline mode aktif.");
-                
                 const { data, error } = await sbClient.from('transactions').select('*').eq('user_id', currentUser.id).order('date', { ascending: true });
                 if (error) throw error;
 
-                // Logika Migrasi Data Guest ke Cloud 
                 const pendingData = localStorage.getItem('pending_guest_data');
                 if (pendingData) {
                     try {
@@ -950,7 +821,6 @@
                             const payload = guestDb.map(t => { let newData = { ...t, user_id: currentUser.id }; if(newData.id) delete newData.id; return newData; });
                             const { error: insertErr } = await sbClient.from('transactions').insert(payload);
                             if (insertErr) throw insertErr;
-                            
                             localStorage.removeItem('pending_guest_data');
                             const { data: newData } = await sbClient.from('transactions').select('*').eq('user_id', currentUser.id).order('date', { ascending: true });
                             db = newData || [];
@@ -961,10 +831,9 @@
                     } catch (migrationError) { db = data; }
                 } else { db = data; }
 
-                saveLocalDB(db); // Simpan ke Cache Cloud Lokal
+                saveLocalDB(db); 
                 if(typeof updateUI === 'function') updateUI(document.getElementById('searchTxInput') ? document.getElementById('searchTxInput').value : ''); 
             } catch (error) {
-                // Gagal fetch? Langsung hajar pakai data Cache Cloud Lokal
                 db = loadLocalDB(false); 
                 if(typeof updateUI === 'function') updateUI(document.getElementById('searchTxInput') ? document.getElementById('searchTxInput').value : '');
             }
@@ -979,24 +848,114 @@
                 }).subscribe();
         }
 
+        async function bootApp() {
+            // Render tombol dan UI langsung, tanpa nunggu API/jaringan
+            if(typeof renderShortcuts === 'function') renderShortcuts(); 
+            
+            // CEGAH CRASH SAAT OFFLINE EKSTREM
+            if (typeof window.supabase === 'undefined') {
+                if (wasLoggedIn) {
+                    currentUser = { id: 'offline_user', email: profile.googleEmail || 'Offline User' };
+                    db = loadLocalDB(false); 
+                    const netStatus = document.getElementById('networkStatus');
+                    if(netStatus) { netStatus.innerText = "Offline Mode (Cloud)"; netStatus.className = "status-sync sync-offline"; }
+                } else {
+                    currentUser = null;
+                    db = loadLocalDB(true); 
+                    const netStatus = document.getElementById('networkStatus');
+                    if(netStatus) { netStatus.innerText = "Offline Mode (Guest)"; netStatus.className = "status-sync sync-offline"; }
+                }
+                initAppHeader();
+                if(typeof updateUI === 'function') updateUI('');
+                return; // Berhenti agar tidak mengeksekusi script Supabase yang mati
+            }
+
+            const supabaseUrl = 'https://kkbfppuxuwcbapexlqsx.supabase.co';
+            const supabaseKey = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImtrYmZwcHV4dXdjYmFwZXhscXN4Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzIwMDMwODAsImV4cCI6MjA4NzU3OTA4MH0.pOGHpiR333Ltp2g3BQvV8xSMbdbMeRMHJ3ZgecHDRzM';
+            sbClient = window.supabase.createClient(supabaseUrl, supabaseKey);
+
+            const { data: { session } } = await sbClient.auth.getSession();
+            
+            if (session && session.user) {
+                currentUser = session.user;
+                localStorage.setItem('finance_was_logged_in', 'true');
+                wasLoggedIn = true;
+                
+                db = loadLocalDB(false); 
+                initAppHeader();
+                const netStatus = document.getElementById('networkStatus');
+                if(netStatus) { netStatus.innerText = navigator.onLine ? "Online Mode (Cloud)" : "Offline Mode (Cloud)"; netStatus.className = navigator.onLine ? "status-sync sync-online" : "status-sync sync-offline"; }
+                
+                fetchUserTransactions(); 
+                setupRealtime();
+                if (navigator.onLine && pendingSync.length > 0) processPendingSync();
+            } else {
+                currentUser = null;
+                localStorage.setItem('finance_was_logged_in', 'false');
+                wasLoggedIn = false;
+                db = loadLocalDB(true);
+                initAppHeader();
+                const netStatus = document.getElementById('networkStatus');
+                if(netStatus) { netStatus.innerText = navigator.onLine ? "Online Mode (Guest)" : "Offline Mode (Guest)"; netStatus.className = navigator.onLine ? "status-sync sync-online" : "status-sync sync-offline"; }
+            }
+            if(typeof updateUI === 'function') updateUI('');
+
+            sbClient.auth.onAuthStateChange(async (event, currentSession) => {
+                if (event === 'SIGNED_OUT') {
+                    currentUser = null;
+                    localStorage.setItem('finance_was_logged_in', 'false');
+                    wasLoggedIn = false;
+                    profile.googleLinked = false; profile.googleEmail = '';
+                    db = loadLocalDB(true);
+                    initAppHeader();
+                    if(typeof renderShortcuts === 'function') renderShortcuts(); 
+                    if(typeof updateUI === 'function') updateUI('');
+                    showToast("Berhasil Logout. Mode Guest.", "success");
+                    closeModal('profileViewModal');
+                    const netStatus = document.getElementById('networkStatus');
+                    if(netStatus) { netStatus.innerText = navigator.onLine ? "Online Mode (Guest)" : "Offline Mode (Guest)"; netStatus.className = navigator.onLine ? "status-sync sync-online" : "status-sync sync-offline"; }
+                } else if (event === 'SIGNED_IN' && currentSession) {
+                    currentUser = currentSession.user; 
+                    localStorage.setItem('finance_was_logged_in', 'true');
+                    wasLoggedIn = true;
+                    const netStatus = document.getElementById('networkStatus');
+                    if(netStatus) { netStatus.innerText = navigator.onLine ? "Online Mode (Cloud)" : "Offline Mode (Cloud)"; netStatus.className = navigator.onLine ? "status-sync sync-online" : "status-sync sync-offline"; }
+                    try {
+                        const { data: profileData } = await sbClient.from('profiles').select('data').eq('id', currentUser.id).single();
+                        if (profileData && profileData.data) { profile = { ...profile, ...profileData.data }; } 
+                        else { 
+                            if(profile.name === 'Guest') profile.name = properTitleCase(currentUser.user_metadata?.full_name) || 'Member'; 
+                            profile.photo = currentUser.user_metadata?.avatar_url || profile.photo; 
+                            await saveProfileToSupabase(); 
+                        }
+                    } catch(e) {}
+                    profile.googleLinked = true; profile.googleEmail = currentUser.email; 
+                    db = loadLocalDB(false); 
+                    initAppHeader(); 
+                    if(typeof renderShortcuts === 'function') renderShortcuts(); 
+                    fetchUserTransactions(); 
+                    setupRealtime();
+                    closeModal('googleAuthModal');
+                    if (navigator.onLine && pendingSync.length > 0) processPendingSync();
+                }
+            });
+
+            if (typeof window.emailjs !== 'undefined') { window.emailjs.init("qcqCpH81lqwQKw_MG"); }
+        }
+
         // ==========================================
-        // 6. DETEKSI JARINGAN KETAT (ANTI-FREEZE)
+        // 5. DETEKSI JARINGAN KETAT
         // ==========================================
         window.addEventListener('DOMContentLoaded', () => {
             document.querySelectorAll('.modal-overlay.active').forEach(el => el.classList.remove('active'));
+            if (navigator.onLine && pendingSync.length > 0) { setTimeout(processPendingSync, 3000); }
         });
 
         window.addEventListener('online', () => { 
             const netStatus = document.getElementById('networkStatus');
-            if(netStatus) { 
-                netStatus.innerText = wasLoggedIn ? "Online Mode (Cloud)" : "Online Mode (Guest)"; 
-                netStatus.className = "status-sync sync-online"; 
-            }
-            if(pendingSync.length > 0) {
-                processPendingSync();
-            } else if(typeof fetchUserTransactions === 'function' && wasLoggedIn) {
-                fetchUserTransactions(); 
-            }
+            if(netStatus) { netStatus.innerText = wasLoggedIn ? "Online Mode (Cloud)" : "Online Mode (Guest)"; netStatus.className = "status-sync sync-online"; }
+            if(pendingSync.length > 0) { processPendingSync(); } 
+            else if(typeof fetchUserTransactions === 'function' && wasLoggedIn) { fetchUserTransactions(); }
         });
         
         window.addEventListener('offline', () => { 
@@ -1006,18 +965,12 @@
                 netStatus.className = pendingSync.length > 0 ? "status-sync sync-pending" : "status-sync sync-offline"; 
             }
             showToast("Koneksi terputus. Mode Offline Aktif.", "error");
-            // Render ulang supaya UX konsisten
             if(typeof updateUI === 'function') updateUI(document.getElementById('searchTxInput') ? document.getElementById('searchTxInput').value : '');
         });
 
         document.addEventListener("visibilitychange", () => {
-            if (document.visibilityState === 'visible') {
-                if (navigator.onLine && pendingSync.length > 0) {
-                    processPendingSync();
-                }
-            }
+            if (document.visibilityState === 'visible') { if (navigator.onLine && pendingSync.length > 0) { processPendingSync(); } }
         });
-
         // ==========================================
         // 7. FORMATTER & UTILITY SAKTI
         // ==========================================
@@ -1042,6 +995,7 @@
         let confirmAction = null;
         function openCustomConfirm(title, desc, action) { document.getElementById('confirmTitle').innerText = title; document.getElementById('confirmDesc').innerHTML = desc; confirmAction = action; document.getElementById('confirmModal').classList.add('active'); }
         document.getElementById('btnConfirmYes').addEventListener('click', () => { if(confirmAction) confirmAction(); closeModal('confirmModal'); });
+
         // ==========================================
         // 8. PROFIL, KEAMANAN PIN & GOOGLE AUTH
         // ==========================================
@@ -1108,31 +1062,38 @@
 
         function openProfileView() { 
             let inT = 0, outT = 0; db.forEach(t => { if(t.type === 'masuk') inT += t.amount; else outT += t.amount; }); 
-            document.getElementById('viewProfileImg').src = profile.photo; document.getElementById('viewProfileName').innerText = profile.name; document.getElementById('viewJoinDate').innerText = "Bergabung: " + formatDetailDate(profile.joinDate); document.getElementById('viewGender').innerText = profile.gender || '-'; document.getElementById('viewBirth').innerText = profile.birthDate || '-'; document.getElementById('viewTotalMasuk').innerText = formatRp(inT); document.getElementById('viewTotalKeluar').innerText = formatRp(outT); 
-            const stat = document.getElementById('viewGoogleStatus'); const btnText = document.getElementById('textGoogleLink'); const btn = document.getElementById('btnGoogleLink'); 
+            document.getElementById('viewProfileImg').src = profile.photo; 
+            document.getElementById('viewProfileName').innerText = profile.name; 
+            document.getElementById('viewJoinDate').innerText = "Bergabung: " + formatDetailDate(profile.joinDate); 
+            document.getElementById('viewGender').innerText = profile.gender || '-'; 
+            document.getElementById('viewBirth').innerText = profile.birthDate || '-'; 
+            document.getElementById('viewTotalMasuk').innerText = formatRp(inT); 
+            document.getElementById('viewTotalKeluar').innerText = formatRp(outT); 
+            
+            const stat = document.getElementById('viewGoogleStatus'); 
+            const btnText = document.getElementById('textGoogleLink'); 
+            const btn = document.getElementById('btnGoogleLink'); 
             
             if(wasLoggedIn || (currentUser && currentUser.id !== 'offline_user')) { 
-                stat.innerHTML = `<span style="color:var(--hijau); font-weight:700;">${profile.googleEmail || (currentUser ? currentUser.email : 'Cloud User')}</span>`; btnText.innerText = "Logout"; btn.style.borderColor = "var(--merah)"; btn.style.color = "var(--merah)"; 
+                stat.innerHTML = `<span style="color:var(--hijau); font-weight:700;">${profile.googleEmail || (currentUser ? currentUser.email : 'Cloud User')}</span>`; 
+                btnText.innerText = "Logout"; btn.style.borderColor = "var(--merah)"; btn.style.color = "var(--merah)"; 
                 btn.onclick = async () => { 
                     openCustomConfirm("Logout Akun", "Logout ke mode Guest?", async () => { 
-                        if(sbClient && navigator.onLine) await sbClient.auth.signOut(); 
+                        if(sbClient && navigator.onLine) { await sbClient.auth.signOut(); }
                         else { 
-                            // Paksa logout lokal kalau lagi offline
-                            currentUser = null;
-                            wasLoggedIn = false;
-                            localStorage.setItem('finance_was_logged_in', 'false');
-                            db = loadLocalDB(true);
-                            initAppHeader();
-                            if(typeof updateUI === 'function') updateUI('');
-                            closeModal('profileViewModal');
-                            showToast("Logout Paksa (Offline). Mode Guest.", "success");
-                            const netStatus = document.getElementById('networkStatus');
+                            // Mode Offline Logout
+                            currentUser = null; wasLoggedIn = false; localStorage.setItem('finance_was_logged_in', 'false'); 
+                            db = loadLocalDB(true); initAppHeader(); if(typeof updateUI === 'function') updateUI(''); 
+                            closeModal('profileViewModal'); showToast("Logout Paksa (Offline). Mode Guest.", "success"); 
+                            const netStatus = document.getElementById('networkStatus'); 
                             if(netStatus) { netStatus.innerText = "Offline Mode (Guest)"; netStatus.className = "status-sync sync-offline"; }
                         }
                     }); 
                 }; 
             } else { 
-                stat.innerText = "Tidak Terhubung"; stat.style.color = "var(--text-muted)"; btnText.innerText = "Hubungkan"; btn.style.borderColor = "#4285F4"; btn.style.color = "#4285F4"; btn.onclick = openGoogleAuthModal; 
+                stat.innerText = "Tidak Terhubung"; stat.style.color = "var(--text-muted)"; 
+                btnText.innerText = "Hubungkan"; btn.style.borderColor = "#4285F4"; btn.style.color = "#4285F4"; 
+                btn.onclick = openGoogleAuthModal; 
             } 
             document.getElementById('profileViewModal').classList.add('active'); 
         }
@@ -1188,7 +1149,7 @@
             localStorage.removeItem(dbKey + '_fallback');
             
             try { 
-                // Hanya jalankan delete supabase jika benar-benar online dan auth valid
+                // Aman meski offline
                 if (currentUser && currentUser.id !== 'offline_user' && navigator.onLine && sbClient) { 
                     const { error } = await sbClient.from('transactions').delete().eq('user_id', currentUser.id); 
                     if (error) throw error; 
@@ -1199,7 +1160,7 @@
         }
 
         // ==========================================
-        // 9. KONTROL UI & PERSIAPAN INPUT
+        // 9. KONTROL UI MURNI (INTERAKTIF & ANIMASI)
         // ==========================================
         function switchWallet(type) { activeWallet = type; document.getElementById('walletSwitchContainer').setAttribute('data-active', type); renderShortcuts(); updateUI(document.getElementById('searchTxInput') ? document.getElementById('searchTxInput').value : ''); }
         function toggleCustomSelect(id) { const box = document.getElementById(id); const isOpen = box.classList.contains('open'); document.querySelectorAll('.custom-options.open').forEach(el => el.classList.remove('open')); if(!isOpen) box.classList.add('open'); }
@@ -1219,6 +1180,54 @@
             document.body.appendChild(link); link.click(); document.body.removeChild(link); showToast("CSV Berhasil Diunduh", "success"); 
         }
 
+        // FUNGSI RENDER SHORTCUT ASLI LU
+        function renderShortcuts() { 
+            const c = document.getElementById('quickActionsContainer'); 
+            if(activeWallet === 'harian') { 
+                c.className = 'quick-actions-wrap grid-mode grid-split-4'; 
+                c.innerHTML = ` 
+                    <button class="btn-quick glow-merah" onclick="quickInput('keluar', 'Makan', 'Beli Makan')">${svgs.makan} <span>Beli Makan</span></button> 
+                    <button class="btn-quick glow-kuning" onclick="quickInput('keluar', 'Transport', 'Isi Bensin')">${svgs.transport} <span>Transport</span></button> 
+                    <button class="btn-quick glow-biru" onclick="quickInput('masuk', 'Top-Up', 'Isi Saldo')">${svgs.uang} <span>Isi Saldo</span></button> 
+                    <button class="btn-quick glow-ungu" onclick="quickInput('keluar', 'Dipinjam', 'Pinjamkan Uang', true)">${svgs.pinjam} <span>Dipinjam</span></button> 
+                    <button class="btn-quick glow-kuning" onclick="quickInput('keluar', 'MANUAL', '')">${svgs.plus} <span>Lainnya (-)</span></button> 
+                    <button class="btn-quick glow-hijau" onclick="quickInput('masuk', 'MANUAL', '')">${svgs.plus} <span>Lainnya (+)</span></button> 
+                `; 
+            } else { 
+                c.className = 'quick-actions-wrap grid-mode grid-split-4'; 
+                c.innerHTML = ` 
+                    <button class="btn-quick glow-kuning" onclick="quickInput('masuk', 'Top-Up', 'Setor Tabungan')">${svgs.uang} <span>Setor Tunai</span></button> 
+                    <button class="btn-quick glow-merah" onclick="quickInput('keluar', 'Pindah Harian', 'Tarik ke Dompet Harian')">${svgs.atm} <span>Tarik Harian</span></button> 
+                    <button class="btn-quick glow-merah" onclick="quickInput('keluar', 'Lainnya', 'Tarik Tunai')">${svgs.atm} <span>Tarik Lainnya</span></button> 
+                    <button class="btn-quick glow-ungu" onclick="quickInput('keluar', 'Dipinjam', 'Pinjamkan Uang', true)">${svgs.pinjam} <span>Dipinjam</span></button> 
+                `; 
+            } 
+        }
+        
+        // EFEK EXPAND CARD & CHART ASLI LU (TIDAK ADA YANG DIBUANG)
+        function toggleExpandStat(el, id) { 
+            const items = document.getElementById(id).children; 
+            if (el.classList.contains('expanded')) { for(let i of items) i.className = 'expand-item'; } 
+            else { for(let i of items) i.className = (i === el) ? 'expand-item expanded' : 'expand-item collapsed'; } 
+        } 
+        
+        function expandChart(el, id) { 
+            if(!el.classList.contains('expanded')) { 
+                for(let i of document.getElementById(id).children) i.className = (i === el) ? 'expand-item expanded' : 'expand-item collapsed'; 
+                setTimeout(() => { if(typeof Chart !== 'undefined') { if(pieChart) pieChart.resize(); if(barChart) barChart.resize(); if(lineChart) lineChart.resize(); } }, 100); 
+                setTimeout(() => { if(typeof Chart !== 'undefined') { if(pieChart) pieChart.resize(); if(barChart) barChart.resize(); if(lineChart) lineChart.resize(); } }, 550); 
+            } 
+        } 
+        
+        function closeChart(e, btn) { 
+            e.stopPropagation(); 
+            for(let i of btn.closest('.expand-container').children) i.className = 'expand-item'; 
+            setTimeout(() => { if(typeof Chart !== 'undefined') { if(pieChart) pieChart.resize(); if(barChart) barChart.resize(); if(lineChart) lineChart.resize(); } }, 100); 
+            setTimeout(() => { if(typeof Chart !== 'undefined') { if(pieChart) pieChart.resize(); if(barChart) barChart.resize(); if(lineChart) lineChart.resize(); } }, 550); 
+        }
+        // ==========================================
+        // 10. INPUT TRANSAKSI & SMART ROUTING LOGIC
+        // ==========================================
         let isLoanMode = false;
         function quickInput(type, cat, desc, isLoan = false) { 
             isLoanMode = isLoan; 
@@ -1279,7 +1288,8 @@
                         const deskripsiLunas = properTitleCase(`Lunas: ${tx.desc} (${tx.borrower})`); 
                         const lData = { wallet: targetWallet, type: 'masuk', category: 'Lunas Pinjaman', desc: deskripsiLunas, borrower: tx.borrower, amount: tx.amount, date: new Date().toISOString() }; 
                         
-                        if(wasLoggedIn || currentUser) {
+                        // LOGIKA OFFLINE-FIRST
+                        if(wasLoggedIn || (currentUser && currentUser.id !== 'offline_user')) {
                             if (navigator.onLine && sbClient && (!currentUser || currentUser.id !== 'offline_user')) {
                                 lData.user_id = currentUser.id; 
                                 await sbClient.from('transactions').update({ status: 'lunas_pinjaman' }).eq('id', tx.id); 
@@ -1291,8 +1301,7 @@
                                 lData.id = Date.now(); 
                                 db.push(lData); 
                                 pendingSync.push(lData); 
-                                savePendingSync();
-                                saveLocalDB(db); 
+                                savePendingSync(); saveLocalDB(db); 
                                 updateUI(document.getElementById('searchTxInput') ? document.getElementById('searchTxInput').value : ''); 
                                 showToast(`Pinjaman Lunas (Menunggu Sync)`, "syncing");
                             }
@@ -1326,6 +1335,7 @@
                 if(clear && currentUser && currentUser.id !== 'offline_user' && navigator.onLine && sbClient) fetchUserTransactions();
             } 
         }
+
         document.getElementById('btnExecuteTx').addEventListener('click', async () => { 
             if(rawAmount <= 0) { showToast("Nominal 0", "error"); return; } 
             const isSaving = document.getElementById('tx-is-saving').value; 
@@ -1394,7 +1404,7 @@
             } 
             
             // LOGIKA PENYIMPANAN CERDAS (ONLINE/OFFLINE CLOUD/OFFLINE GUEST)
-            if(wasLoggedIn || currentUser) { 
+            if(wasLoggedIn || (currentUser && currentUser.id !== 'offline_user')) { 
                 if (navigator.onLine && sbClient && (!currentUser || currentUser.id !== 'offline_user')) {
                     try { 
                         const payload = txToSave.map(t => { let data = { ...t, user_id: currentUser.id }; delete data.id; return data; });
@@ -1403,9 +1413,9 @@
                         
                         await fetchUserTransactions(); 
                         if(txToSave.some(t => t.wallet === 'harian' && t.type === 'masuk')) checkAndAutoLunasHutang(); 
-                        closeModal('txModal'); 
-                        showToast("Tersimpan di Cloud"); 
+                        closeModal('txModal'); showToast("Tersimpan di Cloud"); 
                     } catch(e) { 
+                        // Koneksi timeout
                         showToast("Koneksi gagal. Menunggu Sync Offline.", "syncing"); 
                         txToSave.forEach(t => { t.id = Date.now() + Math.random(); db.push(t); pendingSync.push(t); }); 
                         savePendingSync(); saveLocalDB(db); closeModal('txModal'); updateUI(document.getElementById('searchTxInput') ? document.getElementById('searchTxInput').value : '');
@@ -1418,14 +1428,14 @@
                     closeModal('txModal'); 
                     updateUI(document.getElementById('searchTxInput') ? document.getElementById('searchTxInput').value : ''); 
                     showToast("Tersimpan Offline (Menunggu Sync)", "syncing"); 
+                    
                     const netStatus = document.getElementById('networkStatus');
                     if(netStatus) { netStatus.innerText = "Offline (Menunggu Sync)"; netStatus.className = "status-sync sync-pending"; }
                 }
             } else { 
                 // Mode Guest Murni
                 txToSave.forEach(t => { t.id = Date.now() + Math.floor(Math.random() * 1000); db.push(t); }); 
-                saveLocalDB(db); 
-                closeModal('txModal'); 
+                saveLocalDB(db); closeModal('txModal'); 
                 if(txToSave.some(t => t.wallet === 'harian' && t.type === 'masuk')) checkAndAutoLunasHutang(); 
                 updateUI(document.getElementById('searchTxInput') ? document.getElementById('searchTxInput').value : ''); 
                 showToast(txToSave.length > 1 ? "Tracker Transparan (Lokal)" : "Disimpan di Lokal"); 
@@ -1434,7 +1444,7 @@
         });
 
         // ==========================================
-        // 10. RENDER UI, AI ENGINE & GRAFIK
+        // 11. RENDER UI, AI ENGINE & GRAFIK MURNI
         // ==========================================
         function updateHealthEngine(filteredDb) { 
             let tIn = 0, tOut = 0; filteredDb.forEach(t => { if(t.type === 'masuk') tIn += t.amount; else tOut += t.amount; }); 
@@ -1444,10 +1454,7 @@
         }
 
         function generateAIForecast(data) { 
-            const box = document.getElementById('aiInsightBox'); 
-            const textEl = document.getElementById('aiInsightText'); 
-            aiMessages = []; 
-            
+            const box = document.getElementById('aiInsightBox'); const textEl = document.getElementById('aiInsightText'); aiMessages = []; 
             if (data.length === 0) { 
                 aiMessages.push("Belum ada data transaksi. Ayo mulai catat aktivitas keuanganmu!");
                 if(!wasLoggedIn && (!currentUser || currentUser.id === 'offline_user')) aiMessages.push("Info: Hubungkan dengan Google agar datamu tersimpan aman di Cloud.");
@@ -1479,7 +1486,6 @@
                 else if (mIn === 0 && mOut === 0) { statusMsg = "Brankas tabunganmu belum ada aktivitas bulan ini."; projectionMsg = "Tips: Yuk, mulai sisihkan uangmu hari ini untuk disetor ke tabungan!"; box.style.borderLeftColor = 'var(--biru)'; box.querySelector('svg').style.color = 'var(--biru)'; } 
             } 
             aiMessages.push(statusMsg); aiMessages.push(projectionMsg); aiMessages.push(biggestExpenseMsg);
-            
             aiMessages = [...new Set(aiMessages)].filter(m => m !== "");
             startAICarousel(textEl); 
         }
@@ -1525,56 +1531,11 @@
         const searchClear = document.getElementById('searchClearBtn'); 
         if(searchInput) {
             searchInput.addEventListener('input', function(e) { 
-                let val = e.target.value.toLowerCase(); 
-                searchClear.style.display = val.length > 0 ? 'block' : 'none'; updateUI(val); 
+                let val = e.target.value.toLowerCase(); searchClear.style.display = val.length > 0 ? 'block' : 'none'; updateUI(val); 
             }); 
         }
         function clearSearch() { searchInput.value = ''; searchClear.style.display = 'none'; updateUI(''); }
         
-        function renderShortcuts() { 
-            const c = document.getElementById('quickActionsContainer'); 
-            if(activeWallet === 'harian') { 
-                c.className = 'quick-actions-wrap grid-mode grid-split-4'; 
-                c.innerHTML = ` 
-                    <button class="btn-quick glow-merah" onclick="quickInput('keluar', 'Makan', 'Beli Makan')">${svgs.makan} <span>Beli Makan</span></button> 
-                    <button class="btn-quick glow-kuning" onclick="quickInput('keluar', 'Transport', 'Isi Bensin')">${svgs.transport} <span>Transport</span></button> 
-                    <button class="btn-quick glow-biru" onclick="quickInput('masuk', 'Top-Up', 'Isi Saldo')">${svgs.uang} <span>Isi Saldo</span></button> 
-                    <button class="btn-quick glow-ungu" onclick="quickInput('keluar', 'Dipinjam', 'Pinjamkan Uang', true)">${svgs.pinjam} <span>Dipinjam</span></button> 
-                    <button class="btn-quick glow-kuning" onclick="quickInput('keluar', 'MANUAL', '')">${svgs.plus} <span>Lainnya (-)</span></button> 
-                    <button class="btn-quick glow-hijau" onclick="quickInput('masuk', 'MANUAL', '')">${svgs.plus} <span>Lainnya (+)</span></button> 
-                `; 
-            } else { 
-                c.className = 'quick-actions-wrap grid-mode grid-split-4'; 
-                c.innerHTML = ` 
-                    <button class="btn-quick glow-kuning" onclick="quickInput('masuk', 'Top-Up', 'Setor Tabungan')">${svgs.uang} <span>Setor Tunai</span></button> 
-                    <button class="btn-quick glow-merah" onclick="quickInput('keluar', 'Pindah Harian', 'Tarik ke Dompet Harian')">${svgs.atm} <span>Tarik Harian</span></button> 
-                    <button class="btn-quick glow-merah" onclick="quickInput('keluar', 'Lainnya', 'Tarik Tunai')">${svgs.atm} <span>Tarik Lainnya</span></button> 
-                    <button class="btn-quick glow-ungu" onclick="quickInput('keluar', 'Dipinjam', 'Pinjamkan Uang', true)">${svgs.pinjam} <span>Dipinjam</span></button> 
-                `; 
-            } 
-        }
-        
-        function toggleExpandStat(el, id) { 
-            const items = document.getElementById(id).children; 
-            if (el.classList.contains('expanded')) { for(let i of items) i.className = 'expand-item'; } 
-            else { for(let i of items) i.className = (i === el) ? 'expand-item expanded' : 'expand-item collapsed'; } 
-        } 
-        
-        function expandChart(el, id) { 
-            if(!el.classList.contains('expanded')) { 
-                for(let i of document.getElementById(id).children) i.className = (i === el) ? 'expand-item expanded' : 'expand-item collapsed'; 
-                setTimeout(() => { if(typeof Chart !== 'undefined') { if(pieChart) pieChart.resize(); if(barChart) barChart.resize(); if(lineChart) lineChart.resize(); } }, 100); 
-                setTimeout(() => { if(typeof Chart !== 'undefined') { if(pieChart) pieChart.resize(); if(barChart) barChart.resize(); if(lineChart) lineChart.resize(); } }, 550); 
-            } 
-        } 
-        
-        function closeChart(e, btn) { 
-            e.stopPropagation(); 
-            for(let i of btn.closest('.expand-container').children) i.className = 'expand-item'; 
-            setTimeout(() => { if(typeof Chart !== 'undefined') { if(pieChart) pieChart.resize(); if(barChart) barChart.resize(); if(lineChart) lineChart.resize(); } }, 100); 
-            setTimeout(() => { if(typeof Chart !== 'undefined') { if(pieChart) pieChart.resize(); if(barChart) barChart.resize(); if(lineChart) lineChart.resize(); } }, 550); 
-        }
-
         function updateUI(searchTerm = '') {
             let tI = 0, tO = 0; 
             db.filter(t => t.wallet === 'harian').forEach(t => { if(t.type === 'masuk') tI += t.amount; else tO += t.amount; });
@@ -1629,6 +1590,7 @@
         }
 
         function renderCharts(data) {
+            // Cegat error saat offline dan script chart.js gagal termuat
             if (typeof Chart === 'undefined') { console.warn("Sistem Grafik sedang Offline / Gagal dimuat. Melewati render chart."); return; }
             if (!document.getElementById('pieChart')) return; 
             Chart.defaults.color = '#64748b'; Chart.defaults.font.family = 'Inter';
@@ -1656,7 +1618,7 @@
         }
 
         // ==========================================
-        // 11. NYALAKAN MESIN UTAMA
+        // 12. NYALAKAN MESIN UTAMA
         // ==========================================
         window.addEventListener('load', bootApp);
 
