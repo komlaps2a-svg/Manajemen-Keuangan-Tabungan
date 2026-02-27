@@ -4,11 +4,11 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
     
-    <meta http-equiv="Cache-Control" content="no-cache, no-store, must-revalidate, post-check=0, pre-check=0">
+    <meta http-equiv="Cache-Control" content="no-store, no-cache, must-revalidate, max-age=0">
     <meta http-equiv="Pragma" content="no-cache">
     <meta http-equiv="Expires" content="0">
     
-    <title>Enterprise Finance Dashboard v24.0 (Absolute Z-Offline)</title>
+    <title>Enterprise Finance Dashboard v25.0 (Absolute Anti-Freeze)</title>
     <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800;900&display=swap" rel="stylesheet">
     
     <script defer src="https://cdn.jsdelivr.net/npm/chart.js"></script>
@@ -190,11 +190,14 @@
 
         #btnGoogleLink svg { position: static; margin-right: 5px; }
 
-        .btn-sosmed { display: flex; align-items: center; gap: 8px; flex: 1; justify-content: center; padding: 12px; border-radius: 10px; font-size: 12px; font-weight: 800; text-decoration: none; transition: all 0.3s; cursor: pointer; }
+        /* REVISI CSS UNTUK 3 TOMBOL SOSMED */
+        .sosmed-container { display: grid; grid-template-columns: repeat(3, 1fr); gap: 8px; }
+        .btn-sosmed { display: flex; align-items: center; gap: 6px; justify-content: center; padding: 12px 5px; border-radius: 10px; font-size: 11px; font-weight: 800; text-decoration: none; transition: all 0.3s; cursor: pointer; white-space: nowrap;}
         .btn-sosmed:active { transform: scale(0.95); }
         .btn-sosmed.ig { background: rgba(225, 48, 108, 0.1); color: #E1306C; border: 1px solid rgba(225, 48, 108, 0.3); }
         .btn-sosmed.tt { background: rgba(255, 255, 255, 0.05); color: var(--putih); border: 1px solid var(--border); }
-        .btn-sosmed svg { width: 16px; height: 16px; }
+        .btn-sosmed.sw { background: rgba(245, 158, 11, 0.1); color: var(--kuning); border: 1px solid rgba(245, 158, 11, 0.3); }
+        .btn-sosmed svg { width: 14px; height: 14px; flex-shrink: 0;}
 
         /* === TABLE & SEARCH === */
         .search-container { position: relative; width: 100%; margin-bottom: 15px; }
@@ -416,7 +419,7 @@
 
             <div style="margin-bottom: 25px;">
                 <span class="prof-detail-label" style="text-align: center; margin-bottom: 10px;">Support Developer</span>
-                <div style="display: flex; gap: 10px;">
+                <div class="sosmed-container">
                     <a href="https://www.instagram.com/daengtio_?igsh=MXY4dTVhMGEzNDJxZA==" target="_blank" class="btn-sosmed ig">
                         <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="2" y="2" width="20" height="20" rx="5" ry="5"></rect><path d="M16 11.37A4 4 0 1 1 12.63 8 4 4 0 0 1 16 11.37z"></path><line x1="17.5" y1="6.5" x2="17.51" y2="6.5"></line></svg>
                         Instagram
@@ -424,6 +427,10 @@
                     <a href="https://www.tiktok.com/@daengtio_0?_r=1&_t=ZS-94Cu2soiSXJ" target="_blank" class="btn-sosmed tt">
                         <svg viewBox="0 0 24 24" fill="currentColor"><path d="M19.59 6.69a4.83 4.83 0 0 1-3.77-4.25V2h-3.45v13.67a2.89 2.89 0 0 1-5.2 1.74 2.89 2.89 0 0 1 2.31-4.64 2.93 2.93 0 0 1 .88.13V9.4a6.84 6.84 0 0 0-1-.05A6.33 6.33 0 0 0 5 20.1a6.34 6.34 0 0 0 10.86-4.43v-7a8.16 8.16 0 0 0 4.77 1.52v-3.4a4.85 4.85 0 0 1-1-.1z"/></svg>
                         TikTok
+                    </a>
+                    <a href="https://sociabuzz.com/engyourbae/tribe" target="_blank" class="btn-sosmed sw">
+                        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 2v20M17 5H9.5a3.5 3.5 0 0 0 0 7h5a3.5 3.5 0 0 1 0 7H6"/></svg>
+                        SociaBuzz
                     </a>
                 </div>
             </div>
@@ -651,7 +658,7 @@
         // ==========================================
         // 1. SISTEM AUTO-UPDATE & SMART CACHE BUSTER
         // ==========================================
-        const APP_VERSION = '24.0'; // Hard update version
+        const APP_VERSION = '25.0'; // Hard update version
         
         function checkAppVersion() {
             const savedVersion = localStorage.getItem('finance_app_version');
@@ -670,20 +677,19 @@
         checkAppVersion();
 
         // ==========================================
-        // 2. VARIABEL GLOBAL & MIGRASI STATE (ANTI AMNESIA)
+        // 2. VARIABEL GLOBAL & OBAT ANTI-AMNESIA
         // ==========================================
         let sbClient = null;
         let db = []; 
         let pendingSync = JSON.parse(localStorage.getItem('finance_pending_sync')) || []; 
         let currentUser = null; 
         
-        // OBAT PENYELAMAT DATA: Migrasi flag lama 'wasLoggedIn' agar akun lu ga dianggap Guest saat update / sinyal jelek
+        // LOGIKA ZARCHIVER: Menentukan Loker mana yang dibuka ('GUEST' atau 'CLOUD')
+        // Kita paksa baca flag legacy jika user baru update
         let legacyLoginFlag = localStorage.getItem('finance_was_logged_in') === 'true';
         if (legacyLoginFlag && !localStorage.getItem('finance_app_mode')) {
             localStorage.setItem('finance_app_mode', 'CLOUD');
         }
-        
-        // LOGIKA ZARCHIVER MURNI: Menentukan Loker mana yang dibuka ('GUEST' atau 'CLOUD')
         let APP_MODE = localStorage.getItem('finance_app_mode') || 'GUEST';
 
         let activeWallet = 'harian'; 
@@ -698,12 +704,19 @@
         let generatedOTP = "";
         let otpExpiryTime = 0;
 
+        // PROFIL: Pastikan reset total jika guest
         const defaultProfile = { 
             name: 'Guest', pin: '', txPin: '',
             photo: 'data:image/svg+xml;base64,PHN2ZyB4bWxucz0iaHR0cDovL3d3dy53My5vcmcvMjAwMC9zdmciIHZpZXdCb3g9IjAgMCAyNCAyNCIgZmlsbD0iIzFlMjliYiI+PHBhdGggZD0iTTEyIDJhNSA1IDAgMSAwIDUgNSBNMTIgMTRhNyA3IDAgMCAwLTcgN3YxSDE5di0xYTcgNyAwIDAgMC03LTdaIi8+PC9zdmc+', 
             joinDate: new Date().toISOString(), birthDate: '', gender: 'Rahasia', googleLinked: false, googleEmail: ''
         };
-        let profile = JSON.parse(localStorage.getItem('user_profile_secure_v2')) || defaultProfile;
+        
+        let profile = JSON.parse(localStorage.getItem('user_profile_secure_v2'));
+        // PEMBUNUHAN BUG: Jika status GUEST tapi profil masih nyangkut GoogleLinked, RESET BERSIH!
+        if (!profile || (APP_MODE === 'GUEST' && profile.googleLinked)) {
+            profile = { ...defaultProfile }; 
+            localStorage.setItem('user_profile_secure_v2', JSON.stringify(profile));
+        }
 
         // Data Kategori & SVGs
         const svgs = {
@@ -734,7 +747,6 @@
         const SECRET_KEY = "F1n4nc3_App_S3cur3_K3y_99";
 
         function getDBKey() {
-            // Jika mode GUEST, pakai brankas guest. Jika CLOUD, pakai brankas cloud. Gak ada kompromi.
             return APP_MODE === 'CLOUD' ? 'finance_cloud_db_secure' : 'finance_guest_db_secure';
         }
 
@@ -788,97 +800,95 @@
         }
 
         // ==========================================
-        // 4. MESIN BOOTING SINKRONUS (ANTI FREEZE & ANTI AMNESIA)
+        // 4. MESIN BOOTING SINKRONUS (ANTI FREEZE PENGUNCI)
         // ==========================================
         async function bootApp() {
-            // 1. RENDER INSTAN SEBELUM NYENTUH INTERNET
+            // 1. RENDER INSTAN SEBELUM NYENTUH INTERNET (UI JALAN DULUAN)
             if(typeof renderShortcuts === 'function') renderShortcuts(); 
             
-            // Eksekusi load brankas secara lokal berdasar APP_MODE terakhir
             db = loadLocalDB(); 
             initAppHeader();
             if(typeof updateUI === 'function') updateUI('');
 
-            // Set Status Awal Berdasarkan Mode
             const netStatus = document.getElementById('networkStatus');
             if (APP_MODE === 'CLOUD') {
                 currentUser = { id: 'offline_user', email: profile.googleEmail || 'Cloud User' }; 
-                if(netStatus) { netStatus.innerText = "Offline Mode (Cloud)"; netStatus.className = "status-sync sync-offline"; }
+                if(netStatus) { netStatus.innerText = navigator.onLine ? "Menghubungkan..." : "Offline Mode (Cloud)"; netStatus.className = navigator.onLine ? "status-sync sync-pending" : "status-sync sync-offline"; }
             } else {
                 currentUser = null;
                 if(netStatus) { netStatus.innerText = "Offline Mode (Guest)"; netStatus.className = "status-sync sync-offline"; }
             }
 
-            // 2. CEGAH CRASH JIKA CDN MATI (FULL OFFLINE)
+            // 2. CEGAH CRASH JIKA CDN MATI
             if (typeof window.supabase === 'undefined') {
-                console.warn("Supabase CDN gagal dimuat. Berjalan di mode Z-Offline murni.");
-                return; // STOP DI SINI. UI sudah dirender dari memori lokal.
+                console.warn("Supabase CDN mati. Z-Offline murni aktif.");
+                return;
             }
 
-            // 3. JIKA CDN ADA & INTERNET JALAN
             const supabaseUrl = 'https://kkbfppuxuwcbapexlqsx.supabase.co';
             const supabaseKey = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImtrYmZwcHV4dXdjYmFwZXhscXN4Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzIwMDMwODAsImV4cCI6MjA4NzU3OTA4MH0.pOGHpiR333Ltp2g3BQvV8xSMbdbMeRMHJ3ZgecHDRzM';
             sbClient = window.supabase.createClient(supabaseUrl, supabaseKey);
 
             try {
-                // Validasi Sesi Asli Server (Ada timeout proteksi default supabase)
-                const { data: { session }, error } = await sbClient.auth.getSession();
+                // TIMEOUT 3 DETIK UNTUK CEK SESI (Supaya gak gantung pas buka app dengan sinyal edge)
+                const sessionPromise = sbClient.auth.getSession();
+                const timeoutPromise = new Promise((_, reject) => setTimeout(() => reject(new Error('Timeout Session')), 3000));
                 
-                if (error) throw error; // Lempar ke blok catch kalau jaringan nge-troll
+                const { data: { session }, error } = await Promise.race([sessionPromise, timeoutPromise]);
+                
+                if (error) throw error; 
 
                 if (session && session.user) {
-                    // Online & Terverifikasi Login
                     currentUser = session.user;
                     APP_MODE = 'CLOUD';
                     localStorage.setItem('finance_app_mode', 'CLOUD');
-                    localStorage.setItem('finance_was_logged_in', 'true'); // Flag lawas ikut diupdate biar aman
                     
-                    db = loadLocalDB(); // Tarik ulang memori cloud
-                    if(netStatus) { netStatus.innerText = navigator.onLine ? "Online Mode (Cloud)" : "Offline Mode (Cloud)"; netStatus.className = navigator.onLine ? "status-sync sync-online" : "status-sync sync-offline"; }
+                    db = loadLocalDB(); 
+                    if(netStatus) { netStatus.innerText = "Online Mode (Cloud)"; netStatus.className = "status-sync sync-online"; }
                     
+                    // Jangan ditunggu (biarkan async berjalan di background)
                     fetchUserTransactions(); 
                     setupRealtime();
                     if (navigator.onLine && pendingSync.length > 0) processPendingSync();
                 } else if (navigator.onLine) {
-                    // JIKA ONLINE TAPI SERVER BILANG GAK ADA SESI, BARU PAKSA KE GUEST
+                    // MURNI TIDAK ADA SESI / BELUM LOGIN
                     currentUser = null;
                     APP_MODE = 'GUEST';
                     localStorage.setItem('finance_app_mode', 'GUEST');
-                    localStorage.setItem('finance_was_logged_in', 'false');
                     
                     db = loadLocalDB(); 
                     if(netStatus) { netStatus.innerText = "Online Mode (Guest)"; netStatus.className = "status-sync sync-online"; }
                 }
             } catch (err) {
-                console.warn("Gagal cek sesi Supabase, melanjutkan dengan state lokal:", APP_MODE);
-                // Biarkan APP_MODE tetap seperti apa adanya di local storage, gausah diubah.
+                console.warn("Timeout/Error koneksi Supabase saat booting. Mengunci ke State Lokal:", APP_MODE);
+                if(netStatus) { netStatus.innerText = APP_MODE === 'CLOUD' ? "Offline Mode (Cloud)" : "Offline Mode (Guest)"; netStatus.className = "status-sync sync-offline"; }
             }
             
-            updateUI(''); // Segarkan UI setelah validasi akhir
+            updateUI(''); 
 
-            // 4. LISTENER LOGIN / LOGOUT REALTIME
+            // 4. LISTENER LOGIN / LOGOUT
             sbClient.auth.onAuthStateChange(async (event, currentSession) => {
                 if (event === 'SIGNED_OUT') {
-                    // LOGOUT -> LANGSUNG ISOLASI KE BRANKAS GUEST
+                    // PEMBUNUHAN KARAKTER GUEST: WIPE TOTAL PROFILE
                     currentUser = null;
                     APP_MODE = 'GUEST';
                     localStorage.setItem('finance_app_mode', 'GUEST');
-                    localStorage.setItem('finance_was_logged_in', 'false');
+                    localStorage.removeItem('finance_was_logged_in');
                     
-                    profile.googleLinked = false; 
-                    profile.googleEmail = '';
+                    // Reset Profile 100% ke Guest dan Timpa Memori Lokal!
+                    profile = { ...defaultProfile };
+                    saveProfileLocal();
                     
-                    db = loadLocalDB(); // Buka brankas guest lokal
+                    db = loadLocalDB(); // Langsung akses memori kosong Guest
                     initAppHeader();
                     if(typeof renderShortcuts === 'function') renderShortcuts(); 
                     if(typeof updateUI === 'function') updateUI('');
                     
-                    showToast("Berhasil Logout. Kembali ke Guest.", "success");
+                    showToast("Berhasil Logout. Data dikunci.", "success");
                     closeModal('profileViewModal');
                     
                     if(netStatus) { netStatus.innerText = navigator.onLine ? "Online Mode (Guest)" : "Offline Mode (Guest)"; netStatus.className = navigator.onLine ? "status-sync sync-online" : "status-sync sync-offline"; }
                 } else if (event === 'SIGNED_IN' && currentSession) {
-                    // LOGIN -> PINDAH KE BRANKAS CLOUD
                     currentUser = currentSession.user; 
                     APP_MODE = 'CLOUD';
                     localStorage.setItem('finance_app_mode', 'CLOUD');
@@ -894,11 +904,13 @@
                             profile.photo = currentUser.user_metadata?.avatar_url || profile.photo; 
                             await saveProfileToSupabase(); 
                         }
+                        saveProfileLocal(); // Update memori lokal
                     } catch(e) {}
                     
                     profile.googleLinked = true; profile.googleEmail = currentUser.email; 
+                    saveProfileLocal();
                     
-                    db = loadLocalDB(); // Langsung akses memori Cloud Lokal
+                    db = loadLocalDB(); 
                     initAppHeader(); 
                     if(typeof renderShortcuts === 'function') renderShortcuts(); 
                     fetchUserTransactions(); 
@@ -928,7 +940,7 @@
                     return newData; 
                 });
                 
-                // Pukul rata dengan batas waktu 8 detik, kalau lewat = batal otomatis
+                // Timeout 8 detik
                 const syncPromise = sbClient.from('transactions').insert(payload);
                 const timeoutPromise = new Promise((_, reject) => setTimeout(() => reject(new Error('Timeout Sync')), 8000));
                 
@@ -949,7 +961,7 @@
             try {
                 if (!navigator.onLine) throw new Error("Offline mode aktif.");
                 
-                // Gunakan timeout manual agar kalau internet lelet, aplikasi gak nyangkut loading
+                // Timeout 8 detik
                 const fetchPromise = sbClient.from('transactions').select('*').eq('user_id', currentUser.id).order('date', { ascending: true });
                 const timeoutPromise = new Promise((_, reject) => setTimeout(() => reject(new Error('Timeout Supabase Fetch')), 8000));
                 
@@ -1025,6 +1037,7 @@
 
         document.addEventListener("visibilitychange", () => {
             if (document.visibilityState === 'visible') { 
+                checkAppVersion(); // PAKSA CEK UPDATE TIAP BUKA APP
                 if (navigator.onLine && pendingSync.length > 0) { processPendingSync(); } 
             }
         });
@@ -1032,15 +1045,8 @@
         // ==========================================
         // 7. FORMATTER & UTILITY SAKTI
         // ==========================================
-        function formatRp(num) { 
-            return new Intl.NumberFormat('id-ID', { style: 'currency', currency: 'IDR', minimumFractionDigits: 0 }).format(num); 
-        }
-
-        function formatRpPendek(num) {
-            let str = new Intl.NumberFormat('id-ID', { style: 'currency', currency: 'IDR', minimumFractionDigits: 0 }).format(num);
-            return str.replace(/\.000$/, '...');
-        }
-
+        function formatRp(num) { return new Intl.NumberFormat('id-ID', { style: 'currency', currency: 'IDR', minimumFractionDigits: 0 }).format(num); }
+        function formatRpPendek(num) { let str = new Intl.NumberFormat('id-ID', { style: 'currency', currency: 'IDR', minimumFractionDigits: 0 }).format(num); return str.replace(/\.000$/, '...'); }
         function formatDetailDate(iso) { if(!iso) return '-'; const d = new Date(iso); return `${String(d.getDate()).padStart(2,'0')}/${String(d.getMonth()+1).padStart(2,'0')}/${d.getFullYear()} - ${String(d.getHours()).padStart(2,'0')}:${String(d.getMinutes()).padStart(2,'0')}:${String(d.getSeconds()).padStart(2,'0')}`; }
         function showToast(msg, type = 'success') { const box = document.getElementById('toastBox'); if(!box) return; const t = document.createElement('div'); t.className = `toast ${type}`; t.innerText = msg; box.appendChild(t); setTimeout(() => t.classList.add('show'), 10); setTimeout(() => { t.classList.remove('show'); setTimeout(() => t.remove(), 400); }, 3000); }
         function closeModal(id) { const el = document.getElementById(id); if(el) el.classList.remove('active'); document.querySelectorAll('.custom-options.open').forEach(e => e.classList.remove('open')); }
@@ -1140,11 +1146,13 @@
                         if(sbClient && navigator.onLine) {
                             await sbClient.auth.signOut(); 
                         } else { 
-                            // LOGOUT Z-OFFLINE MURNI (Langsung tutup memori Cloud)
+                            // LOGOUT Z-OFFLINE MURNI - PEMBUNUHAN PROFIL LOKAL
                             currentUser = null;
                             APP_MODE = 'GUEST';
                             localStorage.setItem('finance_app_mode', 'GUEST');
-                            localStorage.setItem('finance_was_logged_in', 'false');
+                            localStorage.removeItem('finance_was_logged_in');
+                            profile = { ...defaultProfile };
+                            saveProfileLocal();
                             db = loadLocalDB(); 
                             initAppHeader();
                             if(typeof updateUI === 'function') updateUI('');
@@ -1290,7 +1298,7 @@
         }
 
         // ==========================================
-        // 10. INPUT TRANSAKSI & ROUTING (ANTI-FREEZE)
+        // 10. INPUT TRANSAKSI & ROUTING (ANTI-FREEZE MUTLAK)
         // ==========================================
         let isLoanMode = false;
         function quickInput(type, cat, desc, isLoan = false) { 
@@ -1301,7 +1309,7 @@
             document.getElementById('tx-category-manual').value = ''; 
             document.getElementById('tx-borrower').value = ''; 
             
-            // BUKA GEMBOK SAAT MODAL DIBUKA
+            // RESET GEMBOK SETIAP MODAL DIBUKA
             document.getElementById('tx-is-saving').value = 'false'; 
             
             if(cat === 'MANUAL') { 
@@ -1355,14 +1363,13 @@
                         const deskripsiLunas = properTitleCase(`Lunas: ${tx.desc} (${tx.borrower})`); 
                         const lData = { wallet: targetWallet, type: 'masuk', category: 'Lunas Pinjaman', desc: deskripsiLunas, borrower: tx.borrower, amount: tx.amount, date: new Date().toISOString() }; 
                         
-                        // Z-OFFLINE LOGIC
                         if(APP_MODE === 'CLOUD') {
                             if (navigator.onLine && sbClient && (!currentUser || currentUser.id !== 'offline_user')) {
                                 try {
                                     lData.user_id = currentUser.id; 
                                     const updatePromise = sbClient.from('transactions').update({ status: 'lunas_pinjaman' }).eq('id', tx.id);
                                     const insertPromise = sbClient.from('transactions').insert([lData]);
-                                    const timeoutPromise = new Promise((_, reject) => setTimeout(() => reject(new Error('Timeout')), 5000));
+                                    const timeoutPromise = new Promise((_, reject) => setTimeout(() => reject(new Error('Timeout Server')), 5000));
                                     
                                     await Promise.race([Promise.all([updatePromise, insertPromise]), timeoutPromise]);
                                     await fetchUserTransactions(); 
@@ -1386,7 +1393,6 @@
                                 showToast(`Pinjaman Lunas (Menunggu Sync)`, "syncing");
                             }
                         } else { 
-                            // Murni Guest Lokal
                             db[idx].status = 'lunas_pinjaman'; 
                             lData.id = Date.now(); 
                             db.push(lData); 
@@ -1425,7 +1431,7 @@
         document.getElementById('btnExecuteTx').addEventListener('click', async () => { 
             if(rawAmount <= 0) { showToast("Nominal 0", "error"); return; } 
             
-            // SISTEM GEMBOK ANTI-DOUBLE CLICK
+            // GEMBOK ANTI-DOUBLE CLICK
             const isSaving = document.getElementById('tx-is-saving').value; 
             if (isSaving === 'true') return; 
             document.getElementById('tx-is-saving').value = 'true'; 
@@ -1496,7 +1502,7 @@
                         try { 
                             const payload = txToSave.map(t => { let data = { ...t, user_id: currentUser.id }; delete data.id; return data; });
                             
-                            // TIMEOUT 5 DETIK AGAR TOMBOL GAK NGE-HANG
+                            // TIMEOUT 5 DETIK SUPER KETAT
                             const insertPromise = sbClient.from('transactions').insert(payload); 
                             const timeoutPromise = new Promise((_, reject) => setTimeout(() => reject(new Error('Timeout Server')), 5000));
                             
@@ -1507,7 +1513,7 @@
                             if(txToSave.some(t => t.wallet === 'harian' && t.type === 'masuk')) checkAndAutoLunasHutang(); 
                             closeModal('txModal'); showToast("Tersimpan di Cloud"); 
                         } catch(e) { 
-                            // Gagal nyambung, langsung lempar ke antrean lokal
+                            // Lgsg lempar ke memori offline kalo server timeout / error
                             showToast("Jaringan lambat. Masuk Antrean Offline.", "syncing"); 
                             txToSave.forEach(t => { t.id = Date.now() + Math.random(); db.push(t); pendingSync.push(t); }); 
                             savePendingSync(); saveLocalDB(db); closeModal('txModal'); updateUI(document.getElementById('searchTxInput') ? document.getElementById('searchTxInput').value : '');
@@ -1515,7 +1521,7 @@
                             if(netStatus) { netStatus.innerText = "Offline (Menunggu Sync)"; netStatus.className = "status-sync sync-pending"; }
                         }
                     } else {
-                        // Memang sedang offline
+                        // Kalau murni offline (navigator.onLine = false)
                         txToSave.forEach(t => { t.id = Date.now() + Math.random(); db.push(t); pendingSync.push(t); }); 
                         savePendingSync(); saveLocalDB(db); 
                         if(txToSave.some(t => t.wallet === 'harian' && t.type === 'masuk')) checkAndAutoLunasHutang(); 
@@ -1525,7 +1531,7 @@
                         if(netStatus) { netStatus.innerText = "Offline (Menunggu Sync)"; netStatus.className = "status-sync sync-pending"; }
                     }
                 } else { 
-                    // MODE GUEST
+                    // GUEST MURNI
                     txToSave.forEach(t => { t.id = Date.now() + Math.floor(Math.random() * 1000); db.push(t); }); 
                     saveLocalDB(db); closeModal('txModal'); 
                     if(txToSave.some(t => t.wallet === 'harian' && t.type === 'masuk')) checkAndAutoLunasHutang(); 
@@ -1533,7 +1539,7 @@
                     showToast(txToSave.length > 1 ? "Tracker Transparan (Lokal)" : "Disimpan di Lokal"); 
                 }
             } finally {
-                // APAPUN YANG TERJADI (SUKSES ATAU ERROR), KUNCI TOMBOL WAJIB DIBUKA LAGI
+                // HUKUM MUTLAK: GEMBOK HARUS DIBUKA KEMBALI APAPUN YANG TERJADI!
                 document.getElementById('tx-is-saving').value = 'false'; 
             }
         });
@@ -1685,7 +1691,7 @@
         }
 
         function renderCharts(data) {
-            if (typeof Chart === 'undefined') { console.warn("Sistem Grafik sedang Offline / Gagal dimuat. Melewati render chart."); return; }
+            if (typeof Chart === 'undefined') { console.warn("Sistem Grafik Offline."); return; }
             if (!document.getElementById('pieChart')) return; 
             Chart.defaults.color = '#64748b'; Chart.defaults.font.family = 'Inter';
             
