@@ -4,11 +4,11 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
     
-    <meta http-equiv="Cache-Control" content="no-cache, no-store, must-revalidate, post-check=0, pre-check=0">
+    <meta http-equiv="Cache-Control" content="no-cache, no-store, must-revalidate">
     <meta http-equiv="Pragma" content="no-cache">
     <meta http-equiv="Expires" content="0">
     
-    <title>Enterprise Finance Dashboard v22.0 (Strict Z-Offline)</title>
+    <title>Enterprise Finance Dashboard v23.0 (Z-Offline Fix)</title>
     <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800;900&display=swap" rel="stylesheet">
     
     <script defer src="https://cdn.jsdelivr.net/npm/chart.js"></script>
@@ -288,7 +288,7 @@
             <button class="btn-tab" onclick="switchWallet('tabungan')" id="tab-tabungan">Brankas Tabungan</button>
         </div>
     </div>
-    
+
     <div class="filter-insight-row">
         <div class="custom-select-wrapper time-filter-wrapper" style="margin-bottom: 0;">
             <div class="custom-select-trigger" onclick="toggleCustomSelect('timeFilterOptions')">
@@ -651,7 +651,7 @@
         // ==========================================
         // 1. SISTEM AUTO-UPDATE & SMART CACHE BUSTER
         // ==========================================
-        const APP_VERSION = '22.0'; // Hard update version
+        const APP_VERSION = '23.0'; 
         
         function checkAppVersion() {
             const savedVersion = localStorage.getItem('finance_app_version');
@@ -661,6 +661,7 @@
                     const updateScreen = document.getElementById('updateScreen');
                     if (updateScreen) {
                         updateScreen.style.display = 'flex';
+                        // Paksa reload true agar bypass cache browser yang membandel
                         setTimeout(() => { window.location.reload(true); }, 1500);
                     }
                 }
@@ -669,12 +670,18 @@
         checkAppVersion();
 
         // ==========================================
-        // 2. VARIABEL GLOBAL & STRICT MODE (ISOLASI BRANKAS)
+        // 2. VARIABEL GLOBAL & MIGRASI STATE (ANTI AMNESIA)
         // ==========================================
         let sbClient = null;
         let db = []; 
         let pendingSync = JSON.parse(localStorage.getItem('finance_pending_sync')) || []; 
         let currentUser = null; 
+        
+        // PENYELAMAT DATA: Migrasi flag lama 'wasLoggedIn' agar akun lu ga dianggap Guest saat update
+        let legacyLoginFlag = localStorage.getItem('finance_was_logged_in') === 'true';
+        if (legacyLoginFlag && !localStorage.getItem('finance_app_mode')) {
+            localStorage.setItem('finance_app_mode', 'CLOUD');
+        }
         
         // LOGIKA ZARCHIVER: Menentukan Loker mana yang dibuka ('GUEST' atau 'CLOUD')
         let APP_MODE = localStorage.getItem('finance_app_mode') || 'GUEST';
@@ -795,7 +802,7 @@
             // Set Status Awal Berdasarkan Mode
             const netStatus = document.getElementById('networkStatus');
             if (APP_MODE === 'CLOUD') {
-                currentUser = { id: 'offline_user', email: profile.googleEmail || 'Cloud User' }; // Siapkan dummy jika offline
+                currentUser = { id: 'offline_user', email: profile.googleEmail || 'Cloud User' }; 
                 if(netStatus) { netStatus.innerText = "Offline Mode (Cloud)"; netStatus.className = "status-sync sync-offline"; }
             } else {
                 currentUser = null;
@@ -821,6 +828,7 @@
                 currentUser = session.user;
                 APP_MODE = 'CLOUD';
                 localStorage.setItem('finance_app_mode', 'CLOUD');
+                localStorage.setItem('finance_was_logged_in', 'true');
                 
                 db = loadLocalDB(); // Tarik ulang memori cloud
                 if(netStatus) { netStatus.innerText = navigator.onLine ? "Online Mode (Cloud)" : "Offline Mode (Cloud)"; netStatus.className = navigator.onLine ? "status-sync sync-online" : "status-sync sync-offline"; }
@@ -828,14 +836,16 @@
                 fetchUserTransactions(); 
                 setupRealtime();
                 if (navigator.onLine && pendingSync.length > 0) processPendingSync();
-            } else {
-                // Jika server bilang tidak ada sesi, paksa ke GUEST
+            } else if (navigator.onLine) {
+                // JIKA ONLINE TAPI SERVER BILANG GAK ADA SESI, BARU PAKSA KE GUEST
+                // Ini mencegah user dilempar ke Guest cuma gara-gara internet jelek pas buka app
                 currentUser = null;
                 APP_MODE = 'GUEST';
                 localStorage.setItem('finance_app_mode', 'GUEST');
+                localStorage.setItem('finance_was_logged_in', 'false');
                 
                 db = loadLocalDB(); 
-                if(netStatus) { netStatus.innerText = navigator.onLine ? "Online Mode (Guest)" : "Offline Mode (Guest)"; netStatus.className = navigator.onLine ? "status-sync sync-online" : "status-sync sync-offline"; }
+                if(netStatus) { netStatus.innerText = "Online Mode (Guest)"; netStatus.className = "status-sync sync-online"; }
             }
             
             updateUI(''); // Segarkan UI setelah validasi akhir
@@ -847,11 +857,12 @@
                     currentUser = null;
                     APP_MODE = 'GUEST';
                     localStorage.setItem('finance_app_mode', 'GUEST');
+                    localStorage.setItem('finance_was_logged_in', 'false');
                     
                     profile.googleLinked = false; 
                     profile.googleEmail = '';
                     
-                    db = loadLocalDB(); // Ini akan otomatis buka brankas guest yang kosong
+                    db = loadLocalDB(); // Buka brankas guest lokal
                     initAppHeader();
                     if(typeof renderShortcuts === 'function') renderShortcuts(); 
                     if(typeof updateUI === 'function') updateUI('');
@@ -865,6 +876,7 @@
                     currentUser = currentSession.user; 
                     APP_MODE = 'CLOUD';
                     localStorage.setItem('finance_app_mode', 'CLOUD');
+                    localStorage.setItem('finance_was_logged_in', 'true');
                     
                     if(netStatus) { netStatus.innerText = navigator.onLine ? "Online Mode (Cloud)" : "Offline Mode (Cloud)"; netStatus.className = navigator.onLine ? "status-sync sync-online" : "status-sync sync-offline"; }
                     
@@ -1028,7 +1040,7 @@
             const btnText = document.getElementById('textGoogleLink'); 
             const btn = document.getElementById('btnGoogleLink'); 
             
-            // Cek apakah mode Cloud (baik online maupun offline)
+            // Cek apakah mode Cloud (baik online maupun offline) berdasarkan APP_MODE
             if(APP_MODE === 'CLOUD') { 
                 stat.innerHTML = `<span style="color:var(--hijau); font-weight:700;">${profile.googleEmail || (currentUser ? currentUser.email : 'Cloud User')}</span>`; 
                 btnText.innerText = "Logout"; btn.style.borderColor = "var(--merah)"; btn.style.color = "var(--merah)"; 
@@ -1041,6 +1053,7 @@
                             currentUser = null;
                             APP_MODE = 'GUEST';
                             localStorage.setItem('finance_app_mode', 'GUEST');
+                            localStorage.setItem('finance_was_logged_in', 'false');
                             db = loadLocalDB(); // Pindah ke brankas Guest (kosong/lokal)
                             initAppHeader();
                             if(typeof updateUI === 'function') updateUI('');
@@ -1139,7 +1152,6 @@
             document.body.appendChild(link); link.click(); document.body.removeChild(link); showToast("CSV Berhasil Diunduh", "success"); 
         }
 
-        // FUNGSI RENDER SHORTCUT ASLI LU
         function renderShortcuts() { 
             const c = document.getElementById('quickActionsContainer'); 
             if(activeWallet === 'harian') { 
@@ -1163,7 +1175,6 @@
             } 
         }
         
-        // EFEK EXPAND CARD & CHART ASLI LU
         function toggleExpandStat(el, id) { 
             const items = document.getElementById(id).children; 
             if (el.classList.contains('expanded')) { for(let i of items) i.className = 'expand-item'; } 
@@ -1196,6 +1207,8 @@
             document.getElementById('tx-desc').value = ''; 
             document.getElementById('tx-category-manual').value = ''; 
             document.getElementById('tx-borrower').value = ''; 
+            // Pastikan gembok tombol reset saat modal terbuka
+            document.getElementById('tx-is-saving').value = 'false'; 
             
             if(cat === 'MANUAL') { 
                 document.getElementById('catSelectWrapper').style.display = 'none'; 
@@ -1248,7 +1261,7 @@
                         const deskripsiLunas = properTitleCase(`Lunas: ${tx.desc} (${tx.borrower})`); 
                         const lData = { wallet: targetWallet, type: 'masuk', category: 'Lunas Pinjaman', desc: deskripsiLunas, borrower: tx.borrower, amount: tx.amount, date: new Date().toISOString() }; 
                         
-                        // LOGIKA ZARCHIVER: Pengecekan pakai APP_MODE
+                        // Z-OFFLINE: Pengecekan pakai APP_MODE
                         if(APP_MODE === 'CLOUD') {
                             if (navigator.onLine && sbClient && (!currentUser || currentUser.id !== 'offline_user')) {
                                 lData.user_id = currentUser.id; 
@@ -1261,8 +1274,7 @@
                                 lData.id = Date.now(); 
                                 db.push(lData); 
                                 pendingSync.push(lData); 
-                                savePendingSync();
-                                saveLocalDB(db); 
+                                savePendingSync(); saveLocalDB(db); 
                                 updateUI(document.getElementById('searchTxInput') ? document.getElementById('searchTxInput').value : ''); 
                                 showToast(`Pinjaman Lunas (Menunggu Sync)`, "syncing");
                             }
@@ -1303,6 +1315,8 @@
 
         document.getElementById('btnExecuteTx').addEventListener('click', async () => { 
             if(rawAmount <= 0) { showToast("Nominal 0", "error"); return; } 
+            
+            // Sistem Gembok Tombol agar tidak double click
             const isSaving = document.getElementById('tx-is-saving').value; 
             if (isSaving === 'true') return; 
             document.getElementById('tx-is-saving').value = 'true'; 
@@ -1311,7 +1325,12 @@
             let cF = document.getElementById('tx-category-manual').style.display === 'block' ? document.getElementById('tx-category-manual').value.trim() : document.getElementById('tx-category').value; 
             let dF = document.getElementById('tx-desc').value.trim(); 
             
-            if(!cF || !dF) { showToast("Isi data dengan lengkap", "error"); document.getElementById('tx-is-saving').value = 'false'; return; } 
+            if(!cF || !dF) { 
+                showToast("Isi data dengan lengkap", "error"); 
+                document.getElementById('tx-is-saving').value = 'false'; // Buka gembok
+                return; 
+            } 
+            
             const tabunganRegex = /tabung|tbgn|tbg|nabung/i;
             const isTabunganRelated = tabunganRegex.test(cF) || tabunganRegex.test(dF);
             
@@ -1369,43 +1388,49 @@
             } 
             
             // LOGIKA ZARCHIVER: PENYIMPANAN CERDAS BERBASIS APP_MODE
-            if(APP_MODE === 'CLOUD') { 
-                if (navigator.onLine && sbClient && (!currentUser || currentUser.id !== 'offline_user')) {
-                    try { 
-                        const payload = txToSave.map(t => { let data = { ...t, user_id: currentUser.id }; delete data.id; return data; });
-                        const { error } = await sbClient.from('transactions').insert(payload); 
-                        if(error) throw error;
-                        
-                        await fetchUserTransactions(); 
-                        if(txToSave.some(t => t.wallet === 'harian' && t.type === 'masuk')) checkAndAutoLunasHutang(); 
-                        closeModal('txModal'); showToast("Tersimpan di Cloud"); 
-                    } catch(e) { 
-                        // Koneksi timeout atau error Supabase
-                        showToast("Koneksi gagal. Menunggu Sync Offline.", "syncing"); 
+            try {
+                if(APP_MODE === 'CLOUD') { 
+                    if (navigator.onLine && sbClient && (!currentUser || currentUser.id !== 'offline_user')) {
+                        try { 
+                            const payload = txToSave.map(t => { let data = { ...t, user_id: currentUser.id }; delete data.id; return data; });
+                            const { error } = await sbClient.from('transactions').insert(payload); 
+                            if(error) throw error;
+                            
+                            await fetchUserTransactions(); 
+                            if(txToSave.some(t => t.wallet === 'harian' && t.type === 'masuk')) checkAndAutoLunasHutang(); 
+                            closeModal('txModal'); showToast("Tersimpan di Cloud"); 
+                        } catch(e) { 
+                            // Mode Penyelamat: Lempar ke Antrean Offline Jika Supabase Error/Timeout
+                            showToast("Server sibuk. Masuk Antrean Offline.", "syncing"); 
+                            txToSave.forEach(t => { t.id = Date.now() + Math.random(); db.push(t); pendingSync.push(t); }); 
+                            savePendingSync(); saveLocalDB(db); closeModal('txModal'); updateUI(document.getElementById('searchTxInput') ? document.getElementById('searchTxInput').value : '');
+                            const netStatus = document.getElementById('networkStatus');
+                            if(netStatus) { netStatus.innerText = "Offline (Menunggu Sync)"; netStatus.className = "status-sync sync-pending"; }
+                        }
+                    } else {
+                        // Masukkan ke Antrean Sinkronisasi Offline karena mode CLOUD tapi HP tidak ada internet
                         txToSave.forEach(t => { t.id = Date.now() + Math.random(); db.push(t); pendingSync.push(t); }); 
-                        savePendingSync(); saveLocalDB(db); closeModal('txModal'); updateUI(document.getElementById('searchTxInput') ? document.getElementById('searchTxInput').value : '');
+                        savePendingSync(); saveLocalDB(db); 
+                        if(txToSave.some(t => t.wallet === 'harian' && t.type === 'masuk')) checkAndAutoLunasHutang(); 
+                        closeModal('txModal'); 
+                        updateUI(document.getElementById('searchTxInput') ? document.getElementById('searchTxInput').value : ''); 
+                        showToast("Tersimpan Offline (Menunggu Sync)", "syncing"); 
+                        
+                        const netStatus = document.getElementById('networkStatus');
+                        if(netStatus) { netStatus.innerText = "Offline (Menunggu Sync)"; netStatus.className = "status-sync sync-pending"; }
                     }
-                } else {
-                    // Masukkan ke Antrean Sinkronisasi Offline karena mode CLOUD
-                    txToSave.forEach(t => { t.id = Date.now() + Math.random(); db.push(t); pendingSync.push(t); }); 
-                    savePendingSync(); saveLocalDB(db); 
+                } else { 
+                    // Z-OFFLINE GUEST MURNI (Tidak ada campur tangan cloud/antrean sync)
+                    txToSave.forEach(t => { t.id = Date.now() + Math.floor(Math.random() * 1000); db.push(t); }); 
+                    saveLocalDB(db); closeModal('txModal'); 
                     if(txToSave.some(t => t.wallet === 'harian' && t.type === 'masuk')) checkAndAutoLunasHutang(); 
-                    closeModal('txModal'); 
                     updateUI(document.getElementById('searchTxInput') ? document.getElementById('searchTxInput').value : ''); 
-                    showToast("Tersimpan Offline (Menunggu Sync)", "syncing"); 
-                    
-                    const netStatus = document.getElementById('networkStatus');
-                    if(netStatus) { netStatus.innerText = "Offline (Menunggu Sync)"; netStatus.className = "status-sync sync-pending"; }
-                }
-            } else { 
-                // Z-OFFLINE GUEST MURNI (Tidak ada campur tangan cloud/antrean sync)
-                txToSave.forEach(t => { t.id = Date.now() + Math.floor(Math.random() * 1000); db.push(t); }); 
-                saveLocalDB(db); closeModal('txModal'); 
-                if(txToSave.some(t => t.wallet === 'harian' && t.type === 'masuk')) checkAndAutoLunasHutang(); 
-                updateUI(document.getElementById('searchTxInput') ? document.getElementById('searchTxInput').value : ''); 
-                showToast(txToSave.length > 1 ? "Tracker Transparan (Lokal)" : "Disimpan di Lokal"); 
-            } 
-            document.getElementById('tx-is-saving').value = 'false'; 
+                    showToast(txToSave.length > 1 ? "Tracker Transparan (Lokal)" : "Disimpan di Lokal"); 
+                } 
+            } finally {
+                // SANGAT PENTING: Buka gembok tombol apapun yang terjadi (sukses atau error)
+                document.getElementById('tx-is-saving').value = 'false'; 
+            }
         });
 
         // ==========================================
