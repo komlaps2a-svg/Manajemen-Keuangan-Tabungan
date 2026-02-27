@@ -3,8 +3,7 @@ const urlsToCache = [
   './',
   './index.html',
   './manifest.json',
-  // Jika kamu punya gambar/icon lokal, tambahkan di sini:
-  // './icon-192x192.png' 
+  './icon-192x192.png'
 ];
 
 // Install Service Worker & Simpan Cache
