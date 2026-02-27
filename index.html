@@ -4,11 +4,11 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
     
-    <meta http-equiv="Cache-Control" content="no-cache, no-store, must-revalidate">
+    <meta http-equiv="Cache-Control" content="no-cache, no-store, must-revalidate, post-check=0, pre-check=0">
     <meta http-equiv="Pragma" content="no-cache">
     <meta http-equiv="Expires" content="0">
     
-    <title>Enterprise Finance Dashboard v23.0 (Z-Offline Fix)</title>
+    <title>Enterprise Finance Dashboard v24.0 (Absolute Z-Offline)</title>
     <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800;900&display=swap" rel="stylesheet">
     
     <script defer src="https://cdn.jsdelivr.net/npm/chart.js"></script>
@@ -27,7 +27,7 @@
             font-family: 'Inter', sans-serif; background-color: var(--navy); color: var(--putih);
             margin: 0; padding: 20px; line-height: 1.5; touch-action: manipulation; overflow-x: hidden;
             box-sizing: border-box;
-            overscroll-behavior-y: none; /* Membunuh pull-to-refresh Android */
+            overscroll-behavior-y: none;
         }
 
         *, *::before, *::after { box-sizing: inherit; }
@@ -651,7 +651,7 @@
         // ==========================================
         // 1. SISTEM AUTO-UPDATE & SMART CACHE BUSTER
         // ==========================================
-        const APP_VERSION = '23.0'; 
+        const APP_VERSION = '24.0'; // Hard update version
         
         function checkAppVersion() {
             const savedVersion = localStorage.getItem('finance_app_version');
@@ -677,13 +677,13 @@
         let pendingSync = JSON.parse(localStorage.getItem('finance_pending_sync')) || []; 
         let currentUser = null; 
         
-        // PENYELAMAT DATA: Migrasi flag lama 'wasLoggedIn' agar akun lu ga dianggap Guest saat update
+        // OBAT PENYELAMAT DATA: Migrasi flag lama 'wasLoggedIn' agar akun lu ga dianggap Guest saat update / sinyal jelek
         let legacyLoginFlag = localStorage.getItem('finance_was_logged_in') === 'true';
         if (legacyLoginFlag && !localStorage.getItem('finance_app_mode')) {
             localStorage.setItem('finance_app_mode', 'CLOUD');
         }
         
-        // LOGIKA ZARCHIVER: Menentukan Loker mana yang dibuka ('GUEST' atau 'CLOUD')
+        // LOGIKA ZARCHIVER MURNI: Menentukan Loker mana yang dibuka ('GUEST' atau 'CLOUD')
         let APP_MODE = localStorage.getItem('finance_app_mode') || 'GUEST';
 
         let activeWallet = 'harian'; 
@@ -788,7 +788,7 @@
         }
 
         // ==========================================
-        // 4. MESIN BOOTING SINKRONUS (ANTI FREEZE)
+        // 4. MESIN BOOTING SINKRONUS (ANTI FREEZE & ANTI AMNESIA)
         // ==========================================
         async function bootApp() {
             // 1. RENDER INSTAN SEBELUM NYENTUH INTERNET
@@ -812,40 +812,46 @@
             // 2. CEGAH CRASH JIKA CDN MATI (FULL OFFLINE)
             if (typeof window.supabase === 'undefined') {
                 console.warn("Supabase CDN gagal dimuat. Berjalan di mode Z-Offline murni.");
-                return; // STOP DI SINI. UI sudah dirender, interaksi bebas jalan.
+                return; // STOP DI SINI. UI sudah dirender dari memori lokal.
             }
 
-            // 3. JIKA CDN ADA & INTERNET ADA
+            // 3. JIKA CDN ADA & INTERNET JALAN
             const supabaseUrl = 'https://kkbfppuxuwcbapexlqsx.supabase.co';
             const supabaseKey = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImtrYmZwcHV4dXdjYmFwZXhscXN4Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzIwMDMwODAsImV4cCI6MjA4NzU3OTA4MH0.pOGHpiR333Ltp2g3BQvV8xSMbdbMeRMHJ3ZgecHDRzM';
             sbClient = window.supabase.createClient(supabaseUrl, supabaseKey);
 
-            // Validasi Sesi Asli Server
-            const { data: { session } } = await sbClient.auth.getSession();
-            
-            if (session && session.user) {
-                // Online & Terverifikasi Login
-                currentUser = session.user;
-                APP_MODE = 'CLOUD';
-                localStorage.setItem('finance_app_mode', 'CLOUD');
-                localStorage.setItem('finance_was_logged_in', 'true');
+            try {
+                // Validasi Sesi Asli Server (Ada timeout proteksi default supabase)
+                const { data: { session }, error } = await sbClient.auth.getSession();
                 
-                db = loadLocalDB(); // Tarik ulang memori cloud
-                if(netStatus) { netStatus.innerText = navigator.onLine ? "Online Mode (Cloud)" : "Offline Mode (Cloud)"; netStatus.className = navigator.onLine ? "status-sync sync-online" : "status-sync sync-offline"; }
-                
-                fetchUserTransactions(); 
-                setupRealtime();
-                if (navigator.onLine && pendingSync.length > 0) processPendingSync();
-            } else if (navigator.onLine) {
-                // JIKA ONLINE TAPI SERVER BILANG GAK ADA SESI, BARU PAKSA KE GUEST
-                // Ini mencegah user dilempar ke Guest cuma gara-gara internet jelek pas buka app
-                currentUser = null;
-                APP_MODE = 'GUEST';
-                localStorage.setItem('finance_app_mode', 'GUEST');
-                localStorage.setItem('finance_was_logged_in', 'false');
-                
-                db = loadLocalDB(); 
-                if(netStatus) { netStatus.innerText = "Online Mode (Guest)"; netStatus.className = "status-sync sync-online"; }
+                if (error) throw error; // Lempar ke blok catch kalau jaringan nge-troll
+
+                if (session && session.user) {
+                    // Online & Terverifikasi Login
+                    currentUser = session.user;
+                    APP_MODE = 'CLOUD';
+                    localStorage.setItem('finance_app_mode', 'CLOUD');
+                    localStorage.setItem('finance_was_logged_in', 'true'); // Flag lawas ikut diupdate biar aman
+                    
+                    db = loadLocalDB(); // Tarik ulang memori cloud
+                    if(netStatus) { netStatus.innerText = navigator.onLine ? "Online Mode (Cloud)" : "Offline Mode (Cloud)"; netStatus.className = navigator.onLine ? "status-sync sync-online" : "status-sync sync-offline"; }
+                    
+                    fetchUserTransactions(); 
+                    setupRealtime();
+                    if (navigator.onLine && pendingSync.length > 0) processPendingSync();
+                } else if (navigator.onLine) {
+                    // JIKA ONLINE TAPI SERVER BILANG GAK ADA SESI, BARU PAKSA KE GUEST
+                    currentUser = null;
+                    APP_MODE = 'GUEST';
+                    localStorage.setItem('finance_app_mode', 'GUEST');
+                    localStorage.setItem('finance_was_logged_in', 'false');
+                    
+                    db = loadLocalDB(); 
+                    if(netStatus) { netStatus.innerText = "Online Mode (Guest)"; netStatus.className = "status-sync sync-online"; }
+                }
+            } catch (err) {
+                console.warn("Gagal cek sesi Supabase, melanjutkan dengan state lokal:", APP_MODE);
+                // Biarkan APP_MODE tetap seperti apa adanya di local storage, gausah diubah.
             }
             
             updateUI(''); // Segarkan UI setelah validasi akhir
@@ -906,7 +912,89 @@
             if (typeof window.emailjs !== 'undefined') { window.emailjs.init("qcqCpH81lqwQKw_MG"); }
         }
         // ==========================================
-        // 5. DETEKSI JARINGAN KETAT (Z-OFFLINE SAFE)
+        // 5. AUTO-SYNC & CLOUD FETCH ENGINE (ANTI-GANTUNG)
+        // ==========================================
+        function savePendingSync() {
+            localStorage.setItem('finance_pending_sync', JSON.stringify(pendingSync));
+        }
+
+        async function processPendingSync() {
+            if (!navigator.onLine || APP_MODE !== 'CLOUD' || !currentUser || currentUser.id === 'offline_user' || !sbClient || pendingSync.length === 0) return;
+            try {
+                showToast("Menyinkronkan data offline...", "syncing");
+                const payload = pendingSync.map(t => { 
+                    let newData = { ...t, user_id: currentUser.id }; 
+                    if(newData.id && String(newData.id).length > 10) delete newData.id; 
+                    return newData; 
+                });
+                
+                // Pukul rata dengan batas waktu 8 detik, kalau lewat = batal otomatis
+                const syncPromise = sbClient.from('transactions').insert(payload);
+                const timeoutPromise = new Promise((_, reject) => setTimeout(() => reject(new Error('Timeout Sync')), 8000));
+                
+                const { error } = await Promise.race([syncPromise, timeoutPromise]);
+                if (error) throw error;
+                
+                pendingSync = [];
+                savePendingSync();
+                showToast("Data offline tersimpan ke Cloud!", "success");
+                fetchUserTransactions();
+            } catch (error) {
+                console.warn("Gagal Auto-Sync, menunggu sesi online berikutnya:", error);
+            }
+        }
+
+        async function fetchUserTransactions() {
+            if (APP_MODE !== 'CLOUD' || !currentUser || currentUser.id === 'offline_user' || !sbClient) return;
+            try {
+                if (!navigator.onLine) throw new Error("Offline mode aktif.");
+                
+                // Gunakan timeout manual agar kalau internet lelet, aplikasi gak nyangkut loading
+                const fetchPromise = sbClient.from('transactions').select('*').eq('user_id', currentUser.id).order('date', { ascending: true });
+                const timeoutPromise = new Promise((_, reject) => setTimeout(() => reject(new Error('Timeout Supabase Fetch')), 8000));
+                
+                const { data, error } = await Promise.race([fetchPromise, timeoutPromise]);
+                if (error) throw error;
+
+                const pendingData = localStorage.getItem('pending_guest_data');
+                if (pendingData) {
+                    try {
+                        const guestDb = JSON.parse(pendingData);
+                        if (data.length === 0 && guestDb.length > 0) {
+                            showToast("Memigrasi data ke Cloud...", "syncing");
+                            const payload = guestDb.map(t => { let newData = { ...t, user_id: currentUser.id }; if(newData.id) delete newData.id; return newData; });
+                            const { error: insertErr } = await sbClient.from('transactions').insert(payload);
+                            if (insertErr) throw insertErr;
+                            localStorage.removeItem('pending_guest_data');
+                            const { data: newData } = await sbClient.from('transactions').select('*').eq('user_id', currentUser.id).order('date', { ascending: true });
+                            db = newData || [];
+                        } else {
+                            localStorage.removeItem('pending_guest_data');
+                            db = data;
+                        }
+                    } catch (migrationError) { db = data; }
+                } else { db = data; }
+
+                saveLocalDB(db); 
+                if(typeof updateUI === 'function') updateUI(document.getElementById('searchTxInput') ? document.getElementById('searchTxInput').value : ''); 
+            } catch (error) {
+                console.warn("Fetch lambat/gagal, memakai memori lokal.");
+                db = loadLocalDB(); 
+                if(typeof updateUI === 'function') updateUI(document.getElementById('searchTxInput') ? document.getElementById('searchTxInput').value : '');
+            }
+        }
+
+        function setupRealtime() {
+            if (APP_MODE !== 'CLOUD' || !currentUser || currentUser.id === 'offline_user' || !sbClient) return;
+            if (realTimeSubscription) sbClient.removeChannel(realTimeSubscription);
+            realTimeSubscription = sbClient.channel('custom-all-channel')
+                .on('postgres_changes', { event: '*', schema: 'public', table: 'transactions', filter: `user_id=eq.${currentUser.id}` }, payload => { 
+                    fetchUserTransactions(); 
+                }).subscribe();
+        }
+
+        // ==========================================
+        // 6. DETEKSI JARINGAN KETAT (Z-OFFLINE SAFE)
         // ==========================================
         window.addEventListener('DOMContentLoaded', () => {
             document.querySelectorAll('.modal-overlay.active').forEach(el => el.classList.remove('active'));
@@ -920,7 +1008,7 @@
                 netStatus.className = "status-sync sync-online"; 
             }
             if(pendingSync.length > 0) { processPendingSync(); } 
-            else if(typeof fetchUserTransactions === 'function' && APP_MODE === 'CLOUD' && currentUser && currentUser.id !== 'offline_user') { 
+            else if(typeof fetchUserTransactions === 'function' && APP_MODE === 'CLOUD') { 
                 fetchUserTransactions(); 
             }
         });
@@ -942,7 +1030,7 @@
         });
 
         // ==========================================
-        // 6. FORMATTER & UTILITY SAKTI
+        // 7. FORMATTER & UTILITY SAKTI
         // ==========================================
         function formatRp(num) { 
             return new Intl.NumberFormat('id-ID', { style: 'currency', currency: 'IDR', minimumFractionDigits: 0 }).format(num); 
@@ -963,7 +1051,7 @@
         document.getElementById('btnConfirmYes').addEventListener('click', () => { if(confirmAction) confirmAction(); closeModal('confirmModal'); });
 
         // ==========================================
-        // 7. PROFIL, KEAMANAN PIN & GOOGLE AUTH
+        // 8. PROFIL, KEAMANAN PIN & GOOGLE AUTH
         // ==========================================
         function initAppHeader() { 
             document.getElementById('headName').innerText = profile.name; 
@@ -973,7 +1061,11 @@
 
         async function saveProfileToSupabase() { 
             if (APP_MODE !== 'CLOUD' || !currentUser || currentUser.id === 'offline_user' || !navigator.onLine || !sbClient) return; 
-            try { await sbClient.from('profiles').upsert({ id: currentUser.id, data: profile }); } catch(e) {} 
+            try { 
+                const upsertPromise = sbClient.from('profiles').upsert({ id: currentUser.id, data: profile }); 
+                const timeoutPromise = new Promise((_, reject) => setTimeout(() => reject(new Error('Timeout Supabase Profile')), 5000));
+                await Promise.race([upsertPromise, timeoutPromise]);
+            } catch(e) { console.warn("Simpan profil tertunda karena jaringan."); } 
         }
 
         function promptTxPin(callback) { 
@@ -1040,7 +1132,6 @@
             const btnText = document.getElementById('textGoogleLink'); 
             const btn = document.getElementById('btnGoogleLink'); 
             
-            // Cek apakah mode Cloud (baik online maupun offline) berdasarkan APP_MODE
             if(APP_MODE === 'CLOUD') { 
                 stat.innerHTML = `<span style="color:var(--hijau); font-weight:700;">${profile.googleEmail || (currentUser ? currentUser.email : 'Cloud User')}</span>`; 
                 btnText.innerText = "Logout"; btn.style.borderColor = "var(--merah)"; btn.style.color = "var(--merah)"; 
@@ -1049,12 +1140,12 @@
                         if(sbClient && navigator.onLine) {
                             await sbClient.auth.signOut(); 
                         } else { 
-                            // LOGOUT Z-OFFLINE MURNI (Isolasi Storage)
+                            // LOGOUT Z-OFFLINE MURNI (Langsung tutup memori Cloud)
                             currentUser = null;
                             APP_MODE = 'GUEST';
                             localStorage.setItem('finance_app_mode', 'GUEST');
                             localStorage.setItem('finance_was_logged_in', 'false');
-                            db = loadLocalDB(); // Pindah ke brankas Guest (kosong/lokal)
+                            db = loadLocalDB(); 
                             initAppHeader();
                             if(typeof updateUI === 'function') updateUI('');
                             closeModal('profileViewModal');
@@ -1124,7 +1215,9 @@
             
             try { 
                 if (APP_MODE === 'CLOUD' && currentUser && currentUser.id !== 'offline_user' && navigator.onLine && sbClient) { 
-                    const { error } = await sbClient.from('transactions').delete().eq('user_id', currentUser.id); 
+                    const delPromise = sbClient.from('transactions').delete().eq('user_id', currentUser.id); 
+                    const timeout = new Promise((_, reject) => setTimeout(() => reject(new Error('Timeout')), 5000));
+                    const { error } = await Promise.race([delPromise, timeout]);
                     if (error) throw error; 
                 }
                 showToast("Database musnah.", "success"); 
@@ -1132,7 +1225,7 @@
             closeModal('resetConfirmModal'); updateUI(document.getElementById('searchTxInput') ? document.getElementById('searchTxInput').value : ''); 
         }
         // ==========================================
-        // 8. KONTROL UI MURNI (INTERAKTIF & ANIMASI UTUH)
+        // 9. KONTROL UI MURNI (INTERAKTIF & ANIMASI UTUH)
         // ==========================================
         function switchWallet(type) { activeWallet = type; document.getElementById('walletSwitchContainer').setAttribute('data-active', type); renderShortcuts(); updateUI(document.getElementById('searchTxInput') ? document.getElementById('searchTxInput').value : ''); }
         function toggleCustomSelect(id) { const box = document.getElementById(id); const isOpen = box.classList.contains('open'); document.querySelectorAll('.custom-options.open').forEach(el => el.classList.remove('open')); if(!isOpen) box.classList.add('open'); }
@@ -1197,7 +1290,7 @@
         }
 
         // ==========================================
-        // 9. INPUT TRANSAKSI & SMART ROUTING LOGIC (Z-OFFLINE SAFE)
+        // 10. INPUT TRANSAKSI & ROUTING (ANTI-FREEZE)
         // ==========================================
         let isLoanMode = false;
         function quickInput(type, cat, desc, isLoan = false) { 
@@ -1207,7 +1300,8 @@
             document.getElementById('tx-desc').value = ''; 
             document.getElementById('tx-category-manual').value = ''; 
             document.getElementById('tx-borrower').value = ''; 
-            // Pastikan gembok tombol reset saat modal terbuka
+            
+            // BUKA GEMBOK SAAT MODAL DIBUKA
             document.getElementById('tx-is-saving').value = 'false'; 
             
             if(cat === 'MANUAL') { 
@@ -1261,14 +1355,27 @@
                         const deskripsiLunas = properTitleCase(`Lunas: ${tx.desc} (${tx.borrower})`); 
                         const lData = { wallet: targetWallet, type: 'masuk', category: 'Lunas Pinjaman', desc: deskripsiLunas, borrower: tx.borrower, amount: tx.amount, date: new Date().toISOString() }; 
                         
-                        // Z-OFFLINE: Pengecekan pakai APP_MODE
+                        // Z-OFFLINE LOGIC
                         if(APP_MODE === 'CLOUD') {
                             if (navigator.onLine && sbClient && (!currentUser || currentUser.id !== 'offline_user')) {
-                                lData.user_id = currentUser.id; 
-                                await sbClient.from('transactions').update({ status: 'lunas_pinjaman' }).eq('id', tx.id); 
-                                await sbClient.from('transactions').insert([lData]); 
-                                await fetchUserTransactions(); 
-                                showToast(`Pinjaman Lunas di Cloud`, "success");
+                                try {
+                                    lData.user_id = currentUser.id; 
+                                    const updatePromise = sbClient.from('transactions').update({ status: 'lunas_pinjaman' }).eq('id', tx.id);
+                                    const insertPromise = sbClient.from('transactions').insert([lData]);
+                                    const timeoutPromise = new Promise((_, reject) => setTimeout(() => reject(new Error('Timeout')), 5000));
+                                    
+                                    await Promise.race([Promise.all([updatePromise, insertPromise]), timeoutPromise]);
+                                    await fetchUserTransactions(); 
+                                    showToast(`Pinjaman Lunas di Cloud`, "success");
+                                } catch(err) {
+                                    db[idx].status = 'lunas_pinjaman'; 
+                                    lData.id = Date.now(); 
+                                    db.push(lData); 
+                                    pendingSync.push(lData); 
+                                    savePendingSync(); saveLocalDB(db); 
+                                    updateUI(document.getElementById('searchTxInput') ? document.getElementById('searchTxInput').value : ''); 
+                                    showToast(`Pinjaman Lunas (Menunggu Sync)`, "syncing");
+                                }
                             } else {
                                 db[idx].status = 'lunas_pinjaman'; 
                                 lData.id = Date.now(); 
@@ -1279,7 +1386,7 @@
                                 showToast(`Pinjaman Lunas (Menunggu Sync)`, "syncing");
                             }
                         } else { 
-                            // Murni Guest Lokal (Tidak akan masuk ke antrean sync)
+                            // Murni Guest Lokal
                             db[idx].status = 'lunas_pinjaman'; 
                             lData.id = Date.now(); 
                             db.push(lData); 
@@ -1300,7 +1407,9 @@
                 for (let t of db) { 
                     if(t.wallet === 'harian' && t.status === 'hutang') { 
                         if(APP_MODE === 'CLOUD' && currentUser && currentUser.id !== 'offline_user' && navigator.onLine && sbClient) {
-                            await sbClient.from('transactions').update({ status: 'lunas_hutang' }).eq('id', t.id); 
+                            try {
+                                await sbClient.from('transactions').update({ status: 'lunas_hutang' }).eq('id', t.id);
+                            } catch(e) { t.status = 'lunas_hutang'; }
                         } else {
                             t.status = 'lunas_hutang'; 
                         }
@@ -1316,125 +1425,121 @@
         document.getElementById('btnExecuteTx').addEventListener('click', async () => { 
             if(rawAmount <= 0) { showToast("Nominal 0", "error"); return; } 
             
-            // Sistem Gembok Tombol agar tidak double click
+            // SISTEM GEMBOK ANTI-DOUBLE CLICK
             const isSaving = document.getElementById('tx-is-saving').value; 
             if (isSaving === 'true') return; 
             document.getElementById('tx-is-saving').value = 'true'; 
             
-            const type = document.getElementById('tx-type').value; 
-            let cF = document.getElementById('tx-category-manual').style.display === 'block' ? document.getElementById('tx-category-manual').value.trim() : document.getElementById('tx-category').value; 
-            let dF = document.getElementById('tx-desc').value.trim(); 
-            
-            if(!cF || !dF) { 
-                showToast("Isi data dengan lengkap", "error"); 
-                document.getElementById('tx-is-saving').value = 'false'; // Buka gembok
-                return; 
-            } 
-            
-            const tabunganRegex = /tabung|tbgn|tbg|nabung/i;
-            const isTabunganRelated = tabunganRegex.test(cF) || tabunganRegex.test(dF);
-            
-            cF = properTitleCase(cF); dF = properTitleCase(dF); 
-            
-            let stat = 'normal'; let brw = ''; let txToSave = []; 
-            let sI_har = 0, sO_har = 0; db.filter(t => t.wallet === 'harian').forEach(t => { if(t.type === 'masuk') sI_har += t.amount; else sO_har += t.amount; }); let saldoHarian = sI_har - sO_har; 
-            let sI_tab = 0, sO_tab = 0; db.filter(t => t.wallet === 'tabungan').forEach(t => { if(t.type === 'masuk') sI_tab += t.amount; else sO_tab += t.amount; }); let saldoTabungan = sI_tab - sO_tab; 
+            try {
+                const type = document.getElementById('tx-type').value; 
+                let cF = document.getElementById('tx-category-manual').style.display === 'block' ? document.getElementById('tx-category-manual').value.trim() : document.getElementById('tx-category').value; 
+                let dF = document.getElementById('tx-desc').value.trim(); 
+                
+                if(!cF || !dF) { showToast("Isi data dengan lengkap", "error"); return; } 
+                const tabunganRegex = /tabung|tbgn|tbg|nabung/i;
+                const isTabunganRelated = tabunganRegex.test(cF) || tabunganRegex.test(dF);
+                
+                cF = properTitleCase(cF); dF = properTitleCase(dF); 
+                
+                let stat = 'normal'; let brw = ''; let txToSave = []; 
+                let sI_har = 0, sO_har = 0; db.filter(t => t.wallet === 'harian').forEach(t => { if(t.type === 'masuk') sI_har += t.amount; else sO_har += t.amount; }); let saldoHarian = sI_har - sO_har; 
+                let sI_tab = 0, sO_tab = 0; db.filter(t => t.wallet === 'tabungan').forEach(t => { if(t.type === 'masuk') sI_tab += t.amount; else sO_tab += t.amount; }); let saldoTabungan = sI_tab - sO_tab; 
 
-            if (activeWallet === 'harian' && isTabunganRelated) { 
-                if (type === 'masuk') { 
-                    showToast("Ditolak! Indikasi manipulasi tabungan.", "error"); 
-                    document.getElementById('tx-is-saving').value = 'false'; return; 
-                } else if (type === 'keluar') { 
-                    if (saldoHarian < rawAmount) { showToast(`Saldo harian kurang!`, "error"); document.getElementById('tx-is-saving').value = 'false'; return; } 
-                    txToSave.push({ wallet: 'harian', type: 'keluar', category: 'Pindah Tabungan', desc: 'Auto-Transfer Ke Tabungan', borrower: '', status: 'normal', amount: rawAmount, date: new Date().toISOString() }); 
-                    txToSave.push({ wallet: 'tabungan', type: 'masuk', category: 'Setor Manual', desc: dF, borrower: '', status: 'normal', amount: rawAmount, date: new Date().toISOString() }); 
-                } 
-            } else if (activeWallet === 'tabungan' && /pindah|harian|tarik/i.test(cF) && cF.toLowerCase().includes('harian')) { 
-                if (type === 'keluar') { 
-                    if(rawAmount > saldoTabungan) { showToast("Saldo tabungan kurang!", "error"); document.getElementById('tx-is-saving').value = 'false'; return; } 
-                    txToSave.push({ wallet: 'tabungan', type: 'keluar', category: 'Pindah Harian', desc: dF || 'Tarik Ke Dompet Harian', borrower: '', status: 'normal', amount: rawAmount, date: new Date().toISOString() }); 
-                    txToSave.push({ wallet: 'harian', type: 'masuk', category: 'Dari Tabungan', desc: 'Suntikan Dana Tabungan', borrower: '', status: 'normal', amount: rawAmount, date: new Date().toISOString() }); 
-                } 
-            } else { 
-                if(activeWallet === 'harian') { 
-                    if(type === 'keluar') { if(saldoHarian - rawAmount < 0) { stat = 'hutang'; showToast("Dicatat Hutang", "error"); } } 
-                    if (isLoanMode) { 
-                        brw = properTitleCase(document.getElementById('tx-borrower').value.trim()); 
-                        if(!brw) { showToast("Isi peminjam", "error"); document.getElementById('tx-is-saving').value = 'false'; return; } 
-                        stat = 'dipinjam'; 
+                if (activeWallet === 'harian' && isTabunganRelated) { 
+                    if (type === 'masuk') { showToast("Ditolak! Indikasi manipulasi tabungan.", "error"); return; } 
+                    else if (type === 'keluar') { 
+                        if (saldoHarian < rawAmount) { showToast(`Saldo harian kurang!`, "error"); return; } 
+                        txToSave.push({ wallet: 'harian', type: 'keluar', category: 'Pindah Tabungan', desc: 'Auto-Transfer Ke Tabungan', borrower: '', status: 'normal', amount: rawAmount, date: new Date().toISOString() }); 
+                        txToSave.push({ wallet: 'tabungan', type: 'masuk', category: 'Setor Manual', desc: dF, borrower: '', status: 'normal', amount: rawAmount, date: new Date().toISOString() }); 
                     } 
-                    txToSave.push({ wallet: activeWallet, type: type, category: cF, desc: dF, borrower: brw, status: stat, amount: rawAmount, date: new Date().toISOString() }); 
-                } else if (activeWallet === 'tabungan') { 
+                } else if (activeWallet === 'tabungan' && /pindah|harian|tarik/i.test(cF) && cF.toLowerCase().includes('harian')) { 
                     if (type === 'keluar') { 
-                        if(rawAmount > saldoTabungan) { showToast("Saldo tabungan kurang!", "error"); document.getElementById('tx-is-saving').value = 'false'; return; } 
+                        if(rawAmount > saldoTabungan) { showToast("Saldo tabungan kurang!", "error"); return; } 
+                        txToSave.push({ wallet: 'tabungan', type: 'keluar', category: 'Pindah Harian', desc: dF || 'Tarik Ke Dompet Harian', borrower: '', status: 'normal', amount: rawAmount, date: new Date().toISOString() }); 
+                        txToSave.push({ wallet: 'harian', type: 'masuk', category: 'Dari Tabungan', desc: 'Suntikan Dana Tabungan', borrower: '', status: 'normal', amount: rawAmount, date: new Date().toISOString() }); 
+                    } 
+                } else { 
+                    if(activeWallet === 'harian') { 
+                        if(type === 'keluar') { if(saldoHarian - rawAmount < 0) { stat = 'hutang'; showToast("Dicatat Hutang", "error"); } } 
                         if (isLoanMode) { 
                             brw = properTitleCase(document.getElementById('tx-borrower').value.trim()); 
-                            if(!brw) { showToast("Isi peminjam", "error"); document.getElementById('tx-is-saving').value = 'false'; return; } 
+                            if(!brw) { showToast("Isi peminjam", "error"); return; } 
                             stat = 'dipinjam'; 
-                            txToSave.push({ wallet: activeWallet, type: type, category: cF, desc: dF, borrower: brw, status: stat, amount: rawAmount, date: new Date().toISOString() }); 
                         } 
-                        else { 
-                            const baseTime = Date.now(); 
-                            txToSave.push({ wallet: 'tabungan', type: 'keluar', category: 'Pencairan', desc: `Dicairkan Untuk: ${dF}`, borrower: '', status: 'normal', amount: rawAmount, date: new Date(baseTime).toISOString() }); 
-                            txToSave.push({ wallet: 'harian', type: 'masuk', category: 'Dari Tabungan', desc: `Pencairan Untuk: ${dF}`, borrower: '', status: 'normal', amount: rawAmount, date: new Date(baseTime + 1000).toISOString() }); 
-                            txToSave.push({ wallet: 'harian', type: 'keluar', category: cF, desc: dF, borrower: '', status: 'normal', amount: rawAmount, date: new Date(baseTime + 2000).toISOString() }); 
+                        txToSave.push({ wallet: activeWallet, type: type, category: cF, desc: dF, borrower: brw, status: stat, amount: rawAmount, date: new Date().toISOString() }); 
+                    } else if (activeWallet === 'tabungan') { 
+                        if (type === 'keluar') { 
+                            if(rawAmount > saldoTabungan) { showToast("Saldo tabungan kurang!", "error"); return; } 
+                            if (isLoanMode) { 
+                                brw = properTitleCase(document.getElementById('tx-borrower').value.trim()); 
+                                if(!brw) { showToast("Isi peminjam", "error"); return; } 
+                                stat = 'dipinjam'; 
+                                txToSave.push({ wallet: activeWallet, type: type, category: cF, desc: dF, borrower: brw, status: stat, amount: rawAmount, date: new Date().toISOString() }); 
+                            } 
+                            else { 
+                                const baseTime = Date.now(); 
+                                txToSave.push({ wallet: 'tabungan', type: 'keluar', category: 'Pencairan', desc: `Dicairkan Untuk: ${dF}`, borrower: '', status: 'normal', amount: rawAmount, date: new Date(baseTime).toISOString() }); 
+                                txToSave.push({ wallet: 'harian', type: 'masuk', category: 'Dari Tabungan', desc: `Pencairan Untuk: ${dF}`, borrower: '', status: 'normal', amount: rawAmount, date: new Date(baseTime + 1000).toISOString() }); 
+                                txToSave.push({ wallet: 'harian', type: 'keluar', category: cF, desc: dF, borrower: '', status: 'normal', amount: rawAmount, date: new Date(baseTime + 2000).toISOString() }); 
+                            } 
+                        } else if (type === 'masuk') { 
+                            if (saldoHarian < rawAmount) { showToast(`Saldo Harian kurang untuk ditabung!`, "error"); return; } 
+                            txToSave.push({ wallet: 'harian', type: 'keluar', category: 'Pindah Tabungan', desc: 'Auto-Transfer Ke Tabungan', borrower: '', status: 'normal', amount: rawAmount, date: new Date().toISOString() }); 
+                            txToSave.push({ wallet: 'tabungan', type: 'masuk', category: cF, desc: dF, borrower: '', status: 'normal', amount: rawAmount, date: new Date().toISOString() }); 
                         } 
-                    } else if (type === 'masuk') { 
-                        if (saldoHarian < rawAmount) { showToast(`Saldo Harian kurang untuk ditabung!`, "error"); document.getElementById('tx-is-saving').value = 'false'; return; } 
-                        txToSave.push({ wallet: 'harian', type: 'keluar', category: 'Pindah Tabungan', desc: 'Auto-Transfer Ke Tabungan', borrower: '', status: 'normal', amount: rawAmount, date: new Date().toISOString() }); 
-                        txToSave.push({ wallet: 'tabungan', type: 'masuk', category: cF, desc: dF, borrower: '', status: 'normal', amount: rawAmount, date: new Date().toISOString() }); 
                     } 
                 } 
-            } 
-            
-            // LOGIKA ZARCHIVER: PENYIMPANAN CERDAS BERBASIS APP_MODE
-            try {
+                
+                // EKSEKUSI PENYIMPANAN
                 if(APP_MODE === 'CLOUD') { 
                     if (navigator.onLine && sbClient && (!currentUser || currentUser.id !== 'offline_user')) {
                         try { 
                             const payload = txToSave.map(t => { let data = { ...t, user_id: currentUser.id }; delete data.id; return data; });
-                            const { error } = await sbClient.from('transactions').insert(payload); 
+                            
+                            // TIMEOUT 5 DETIK AGAR TOMBOL GAK NGE-HANG
+                            const insertPromise = sbClient.from('transactions').insert(payload); 
+                            const timeoutPromise = new Promise((_, reject) => setTimeout(() => reject(new Error('Timeout Server')), 5000));
+                            
+                            const { error } = await Promise.race([insertPromise, timeoutPromise]);
                             if(error) throw error;
                             
                             await fetchUserTransactions(); 
                             if(txToSave.some(t => t.wallet === 'harian' && t.type === 'masuk')) checkAndAutoLunasHutang(); 
                             closeModal('txModal'); showToast("Tersimpan di Cloud"); 
                         } catch(e) { 
-                            // Mode Penyelamat: Lempar ke Antrean Offline Jika Supabase Error/Timeout
-                            showToast("Server sibuk. Masuk Antrean Offline.", "syncing"); 
+                            // Gagal nyambung, langsung lempar ke antrean lokal
+                            showToast("Jaringan lambat. Masuk Antrean Offline.", "syncing"); 
                             txToSave.forEach(t => { t.id = Date.now() + Math.random(); db.push(t); pendingSync.push(t); }); 
                             savePendingSync(); saveLocalDB(db); closeModal('txModal'); updateUI(document.getElementById('searchTxInput') ? document.getElementById('searchTxInput').value : '');
                             const netStatus = document.getElementById('networkStatus');
                             if(netStatus) { netStatus.innerText = "Offline (Menunggu Sync)"; netStatus.className = "status-sync sync-pending"; }
                         }
                     } else {
-                        // Masukkan ke Antrean Sinkronisasi Offline karena mode CLOUD tapi HP tidak ada internet
+                        // Memang sedang offline
                         txToSave.forEach(t => { t.id = Date.now() + Math.random(); db.push(t); pendingSync.push(t); }); 
                         savePendingSync(); saveLocalDB(db); 
                         if(txToSave.some(t => t.wallet === 'harian' && t.type === 'masuk')) checkAndAutoLunasHutang(); 
-                        closeModal('txModal'); 
-                        updateUI(document.getElementById('searchTxInput') ? document.getElementById('searchTxInput').value : ''); 
+                        closeModal('txModal'); updateUI(document.getElementById('searchTxInput') ? document.getElementById('searchTxInput').value : ''); 
                         showToast("Tersimpan Offline (Menunggu Sync)", "syncing"); 
-                        
                         const netStatus = document.getElementById('networkStatus');
                         if(netStatus) { netStatus.innerText = "Offline (Menunggu Sync)"; netStatus.className = "status-sync sync-pending"; }
                     }
                 } else { 
-                    // Z-OFFLINE GUEST MURNI (Tidak ada campur tangan cloud/antrean sync)
+                    // MODE GUEST
                     txToSave.forEach(t => { t.id = Date.now() + Math.floor(Math.random() * 1000); db.push(t); }); 
                     saveLocalDB(db); closeModal('txModal'); 
                     if(txToSave.some(t => t.wallet === 'harian' && t.type === 'masuk')) checkAndAutoLunasHutang(); 
                     updateUI(document.getElementById('searchTxInput') ? document.getElementById('searchTxInput').value : ''); 
                     showToast(txToSave.length > 1 ? "Tracker Transparan (Lokal)" : "Disimpan di Lokal"); 
-                } 
+                }
             } finally {
-                // SANGAT PENTING: Buka gembok tombol apapun yang terjadi (sukses atau error)
+                // APAPUN YANG TERJADI (SUKSES ATAU ERROR), KUNCI TOMBOL WAJIB DIBUKA LAGI
                 document.getElementById('tx-is-saving').value = 'false'; 
             }
         });
 
         // ==========================================
-        // 10. RENDER UI, AI ENGINE & GRAFIK (ANTI CRASH)
+        // 11. RENDER UI, AI ENGINE & GRAFIK
         // ==========================================
         function updateHealthEngine(filteredDb) { 
             let tIn = 0, tOut = 0; filteredDb.forEach(t => { if(t.type === 'masuk') tIn += t.amount; else tOut += t.amount; }); 
@@ -1607,7 +1712,7 @@
         }
 
         // ==========================================
-        // 11. SISTEM LUPA PIN & OTP EMAIL
+        // 12. SISTEM LUPA PIN & OTP EMAIL
         // ==========================================
         function startOTPResetProcess() {
             closeModal('pinAuthModal'); closeModal('resetPinModal'); closeModal('resetTxPinAuthModal');
@@ -1658,7 +1763,7 @@
         }
 
         // ==========================================
-        // 12. NYALAKAN MESIN UTAMA (TRIGER APLIKASI)
+        // 13. NYALAKAN MESIN UTAMA
         // ==========================================
         window.addEventListener('load', bootApp);
 
