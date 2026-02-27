@@ -953,6 +953,128 @@
             }
         }
 
+                async function initSupabaseBackground() {
+            const netStatus = document.getElementById('networkStatus');
+            
+            // Cegah error jika script CDN gagal dimuat
+            if (typeof window.supabase === 'undefined') {
+                console.warn("Supabase CDN mati. Aplikasi berjalan murni offline.");
+                if(netStatus) { netStatus.innerText = "Offline Mode (Lokal)"; netStatus.className = "status-sync sync-offline"; }
+                return;
+            }
+
+            const supabaseUrl = 'https://kkbfppuxuwcbapexlqsx.supabase.co';
+            const supabaseKey = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImtrYmZwcHV4dXdjYmFwZXhscXN4Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzIwMDMwODAsImV4cCI6MjA4NzU3OTA4MH0.pOGHpiR333Ltp2g3BQvV8xSMbdbMeRMHJ3ZgecHDRzM';
+            
+            // Re-use client jika sudah ada, jangan buat ulang berkali-kali
+            if (!sbClient) {
+                sbClient = window.supabase.createClient(supabaseUrl, supabaseKey);
+            }
+
+            // Cek sesi dengan batas waktu (TIMEOUT 5 DETIK)
+            if (APP_MODE === 'CLOUD' && navigator.onLine) {
+                try {
+                    const sessionPromise = sbClient.auth.getSession();
+                    const timeoutPromise = new Promise((_, reject) => setTimeout(() => reject(new Error('Timeout Koneksi')), 5000));
+                    
+                    const { data: { session }, error } = await Promise.race([sessionPromise, timeoutPromise]);
+                    if (error) throw error;
+
+                    if (session && session.user) {
+                        currentUser = session.user;
+                        if(netStatus) { netStatus.innerText = "Online Mode (Cloud)"; netStatus.className = "status-sync sync-online"; }
+                        
+                        fetchUserTransactions(); 
+                        setupRealtime();
+                        if (pendingSync.length > 0) processPendingSync();
+                    } else {
+                        // Sesi server sudah expired/dihapus, maksa turun ke guest
+                        forceLogoutToGuest();
+                    }
+                } catch(err) {
+                    console.warn("Koneksi Supabase timeout, masuk mode antrean lokal.", err);
+                    if(netStatus) { netStatus.innerText = "Server Lambat (Mode Lokal)"; netStatus.className = "status-sync sync-offline"; }
+                }
+            }
+
+            // LISTENER REALTIME LOGIN / LOGOUT (Cegah ganda)
+            if (!window.supabaseListenerAdded) {
+                window.supabaseListenerAdded = true;
+                sbClient.auth.onAuthStateChange(async (event, currentSession) => {
+                    if (event === 'SIGNED_OUT') {
+                        forceLogoutToGuest();
+                    } else if (event === 'SIGNED_IN' && currentSession) {
+                        currentUser = currentSession.user; 
+                        APP_MODE = 'CLOUD';
+                        localStorage.setItem('finance_app_mode', 'CLOUD');
+                        localStorage.setItem('finance_was_logged_in', 'true');
+                        
+                        if(netStatus) { netStatus.innerText = navigator.onLine ? "Online Mode (Cloud)" : "Offline Mode (Cloud)"; netStatus.className = navigator.onLine ? "status-sync sync-online" : "status-sync sync-offline"; }
+                        
+                        // PEMAKSAAN TARIK PROFIL UNTUK MENCEGAH AMNESIA
+                        try {
+                            const { data: profileData } = await sbClient.from('profiles').select('data').eq('id', currentUser.id).single();
+                            if (profileData && profileData.data) { 
+                                profile = { ...profile, ...profileData.data }; 
+                            } else { 
+                                if(profile.name === 'Guest') profile.name = properTitleCase(currentUser.user_metadata?.full_name) || 'Member'; 
+                                profile.photo = currentUser.user_metadata?.avatar_url || profile.photo; 
+                                await saveProfileToSupabase(); 
+                            }
+                        } catch(e) { console.warn("Tarik profil dari Cloud terkendala jaringan."); }
+                        
+                        profile.googleLinked = true; 
+                        profile.googleEmail = currentUser.email; 
+                        saveProfileLocal(); 
+                        
+                        db = loadLocalDB(); 
+                        initAppHeader(); 
+                        if(typeof renderShortcuts === 'function') renderShortcuts(); 
+                        fetchUserTransactions(); 
+                        setupRealtime();
+                        closeModal('googleAuthModal');
+                        
+                        if (navigator.onLine && pendingSync.length > 0) processPendingSync();
+                    }
+                });
+            }
+
+            if (typeof window.emailjs !== 'undefined') { window.emailjs.init("qcqCpH81lqwQKw_MG"); }
+        }
+
+        // ==========================================
+        // 5. AUTO-SYNC & CLOUD FETCH ENGINE (ANTI-GANTUNG)
+        // ==========================================
+        function savePendingSync() {
+            localStorage.setItem('finance_pending_sync', JSON.stringify(pendingSync));
+        }
+
+        async function processPendingSync() {
+            if (!navigator.onLine || APP_MODE !== 'CLOUD' || !currentUser || currentUser.id === 'offline_user' || !sbClient || pendingSync.length === 0) return;
+            try {
+                showToast("Menyinkronkan data offline...", "syncing");
+                const payload = pendingSync.map(t => { 
+                    let newData = { ...t, user_id: currentUser.id }; 
+                    if(newData.id && String(newData.id).length > 10) delete newData.id; 
+                    return newData; 
+                });
+                
+                // TIMEOUT 8 DETIK UNTUK SYNC
+                const syncPromise = sbClient.from('transactions').insert(payload);
+                const timeoutPromise = new Promise((_, reject) => setTimeout(() => reject(new Error('Timeout Sync')), 8000));
+                
+                const { error } = await Promise.race([syncPromise, timeoutPromise]);
+                if (error) throw error;
+                
+                pendingSync = [];
+                savePendingSync();
+                showToast("Data offline tersimpan ke Cloud!", "success");
+                fetchUserTransactions();
+            } catch (error) {
+                console.warn("Gagal Auto-Sync, menunggu sesi online berikutnya:", error);
+            }
+        }
+
         async function fetchUserTransactions() {
             if (APP_MODE !== 'CLOUD' || !currentUser || currentUser.id === 'offline_user' || !sbClient) return;
             try {
@@ -1003,23 +1125,54 @@
         }
 
         // ==========================================
-        // 6. DETEKSI JARINGAN KETAT (Z-OFFLINE SAFE)
+        // 6. DETEKSI JARINGAN KETAT & AUTO RECONNECT
         // ==========================================
         window.addEventListener('DOMContentLoaded', () => {
             document.querySelectorAll('.modal-overlay.active').forEach(el => el.classList.remove('active'));
-            // Delay auto-sync sedikit saat baru buka
             setTimeout(() => { if (navigator.onLine && pendingSync.length > 0) processPendingSync(); }, 3000);
         });
 
         window.addEventListener('online', () => { 
             const netStatus = document.getElementById('networkStatus');
             if(netStatus) { 
-                netStatus.innerText = APP_MODE === 'CLOUD' ? "Online Mode (Cloud)" : "Online Mode (Guest)"; 
-                netStatus.className = "status-sync sync-online"; 
+                netStatus.innerText = APP_MODE === 'CLOUD' ? "Menyambungkan Ulang..." : "Online Mode (Guest)"; 
+                netStatus.className = APP_MODE === 'CLOUD' ? "status-sync sync-pending" : "status-sync sync-online"; 
             }
-            if(pendingSync.length > 0) { processPendingSync(); } 
-            else if(typeof fetchUserTransactions === 'function' && APP_MODE === 'CLOUD') { 
-                fetchUserTransactions(); 
+            if(APP_MODE === 'CLOUD') {
+                // PAKSA RECONNECT JIKA SEBELUMNYA TIMEOUT
+                if (currentUser && currentUser.id === 'offline_user') {
+                    initSupabaseBackground();
+                } else {
+                    if (pendingSync.length > 0) { processPendingSync(); } 
+                    else if (typeof fetchUserTransactions === 'function') { fetchUserTransactions(); }
+                    if(netStatus) { netStatus.innerText = "Online Mode (Cloud)"; netStatus.className = "status-sync sync-online"; }
+                }
+            }
+        });
+        
+        window.addEventListener('offline', () => { 
+            const netStatus = document.getElementById('networkStatus');
+            if(netStatus) { 
+                netStatus.innerText = pendingSync.length > 0 ? "Offline (Menunggu Sync)" : (APP_MODE === 'CLOUD' ? "Offline Mode (Cloud)" : "Offline Mode (Guest)"); 
+                netStatus.className = pendingSync.length > 0 ? "status-sync sync-pending" : "status-sync sync-offline"; 
+            }
+            showToast("Koneksi terputus. Mode Z-Offline Aktif.", "error");
+            if(typeof updateUI === 'function') updateUI(document.getElementById('searchTxInput') ? document.getElementById('searchTxInput').value : '');
+        });
+
+        document.addEventListener("visibilitychange", () => {
+            if (document.visibilityState === 'visible') { 
+                checkAppVersion(); 
+                if (navigator.onLine && APP_MODE === 'CLOUD') { 
+                    const netStatus = document.getElementById('networkStatus');
+                    // Jika sebelumnya gagal konek (masih offline_user), paksa coba lagi saat buka app
+                    if (currentUser && currentUser.id === 'offline_user') {
+                        if(netStatus) { netStatus.innerText = "Menyambungkan Ulang..."; netStatus.className = "status-sync sync-pending"; }
+                        initSupabaseBackground();
+                    } else if (pendingSync.length > 0) {
+                        processPendingSync();
+                    }
+                } 
             }
         });
         
