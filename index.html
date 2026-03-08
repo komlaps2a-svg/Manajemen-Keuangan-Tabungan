@@ -1,9 +1,12 @@
 <!DOCTYPE html>
 <html lang="id">
 <head>
-    <meta charset="UTF-8">
+        <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-    
+    <meta http-equiv="Cache-Control" content="no-cache, no-store, must-revalidate">
+    <meta http-equiv="Pragma" content="no-cache">
+    <meta http-equiv="Expires" content="0">
+
     <link rel="manifest" href="manifest.json">
     <meta name="theme-color" content="#0a1128">
     <link rel="apple-touch-icon" href="icon-192x192.png">
@@ -401,8 +404,10 @@
             <div class="prof-detail-grid">
                 <div class="prof-detail-box"><span class="prof-detail-label">Gender</span><p class="prof-detail-val" id="viewGender">-</p></div>
                 <div class="prof-detail-box"><span class="prof-detail-label">Tgl Lahir</span><p class="prof-detail-val" id="viewBirth">-</p></div>
-                <div class="prof-detail-box"><span class="prof-detail-label">Total Pemasukan</span><p class="prof-detail-val text-hijau" id="viewTotalMasuk">Rp 0</p></div>
-                <div class="prof-detail-box"><span class="prof-detail-label">Total Pengeluaran</span><p class="prof-detail-val text-merah" id="viewTotalKeluar">Rp 0</p></div>
+                <div class="prof-detail-box"><span class="prof-detail-label">Masuk Harian</span><p class="prof-detail-val text-hijau" id="viewTotalMasuk">Rp 0</p></div>
+                <div class="prof-detail-box"><span class="prof-detail-label">Keluar Harian</span><p class="prof-detail-val text-merah" id="viewTotalKeluar">Rp 0</p></div>
+                <div class="prof-detail-box"><span class="prof-detail-label">Masuk Tabungan</span><p class="prof-detail-val text-hijau" id="viewTotalMasukTabungan">Rp 0</p></div>
+                <div class="prof-detail-box"><span class="prof-detail-label">Keluar Tabungan</span><p class="prof-detail-val text-merah" id="viewTotalKeluarTabungan">Rp 0</p></div>
                 
                 <div class="prof-detail-box" style="grid-column: span 2; display:flex; justify-content:space-between; align-items:center; border-color:#4285F4; gap: 10px;">
                     <div style="text-align: left; flex: 1; min-width: 0;">
@@ -1291,14 +1296,34 @@
         });
 
         function openProfileView() { 
-            let inT = 0, outT = 0; db.forEach(t => { if(t.type === 'masuk') inT += t.amount; else outT += t.amount; }); 
-            document.getElementById('viewProfileImg').src = profile.photo; 
-            document.getElementById('viewProfileName').innerText = profile.name; 
-            document.getElementById('viewJoinDate').innerText = "Bergabung: " + formatDetailDate(profile.joinDate); 
-            document.getElementById('viewGender').innerText = profile.gender || '-'; 
-            document.getElementById('viewBirth').innerText = profile.birthDate || '-'; 
-            document.getElementById('viewTotalMasuk').innerText = formatRp(inT); 
-            document.getElementById('viewTotalKeluar').innerText = formatRp(outT); 
+    // Siapkan wadah untuk hitungan masing-masing dompet
+    let inHarian = 0, outHarian = 0, inTabungan = 0, outTabungan = 0; 
+    
+    // Pisahkan hitungan berdasarkan dompet (wallet)
+    db.forEach(t => { 
+        if (t.wallet === 'harian') {
+            if (t.type === 'masuk') inHarian += t.amount; else outHarian += t.amount; 
+        } else if (t.wallet === 'tabungan') {
+            if (t.type === 'masuk') inTabungan += t.amount; else outTabungan += t.amount; 
+        }
+    }); 
+    
+    document.getElementById('viewProfileImg').src = profile.photo; 
+    document.getElementById('viewProfileName').innerText = profile.name; 
+    document.getElementById('viewJoinDate').innerText = "Bergabung: " + formatDetailDate(profile.joinDate); 
+    document.getElementById('viewGender').innerText = profile.gender || '-'; 
+    document.getElementById('viewBirth').innerText = profile.birthDate || '-'; 
+    
+    // Tampilkan data Harian
+    document.getElementById('viewTotalMasuk').innerText = formatRp(inHarian); 
+    document.getElementById('viewTotalKeluar').innerText = formatRp(outHarian); 
+    
+    // Tampilkan data Tabungan
+    const viewMasukTab = document.getElementById('viewTotalMasukTabungan');
+    if (viewMasukTab) viewMasukTab.innerText = formatRp(inTabungan);
+    
+    const viewKeluarTab = document.getElementById('viewTotalKeluarTabungan');
+    if (viewKeluarTab) viewKeluarTab.innerText = formatRp(outTabungan);
             
             const stat = document.getElementById('viewGoogleStatus'); 
             const btnText = document.getElementById('textGoogleLink'); 
@@ -1977,18 +2002,34 @@
             setTimeout(() => {
                 showToast(`Suka dengan aplikasi ini? Yuk <b style="color:var(--kuning);">Dukung Developer</b> dengan cara traktir di menu Profil! ☕`, "syncing");
             }, 15000);
-            
-            // Registrasi Service Worker untuk Full Offline Mode
-            if ('serviceWorker' in navigator) {
-                navigator.serviceWorker.register('service-worker.js')
-                .then(registration => {
-                    console.log('Service Worker berhasil didaftarkan:', registration.scope);
-                })
-                .catch(error => {
-                    console.log('Service Worker gagal didaftarkan:', error);
-                });
-            }
         });
+
+        // REGISTRASI SERVICE WORKER (GAYA KASIR)
+        if ('serviceWorker' in navigator) {
+            window.addEventListener('load', () => {
+                navigator.serviceWorker.register('./sw.js')
+                .then(reg => {
+                    console.log('Service Worker terdaftar!', reg.scope);
+                    reg.onupdatefound = () => {
+                        const installingWorker = reg.installing;
+                        installingWorker.onstatechange = () => {
+                            if (installingWorker.state === 'installed' && navigator.serviceWorker.controller) {
+                                showToast("Update sistem terbaru diterapkan! Memuat ulang...", "syncing");
+                                setTimeout(() => window.location.reload(), 1500);
+                            }
+                        };
+                    };
+                })
+                .catch(err => console.log('Service Worker Gagal!', err));
+            });
+            
+            let refreshing;
+            navigator.serviceWorker.addEventListener('controllerchange', () => {
+                if (refreshing) return;
+                refreshing = true;
+                window.location.reload();
+            });
+        }
 
     </script>
 </body>
