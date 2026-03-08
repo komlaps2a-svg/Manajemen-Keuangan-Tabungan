@@ -682,7 +682,7 @@
         // ==========================================
         // 1. SISTEM AUTO-UPDATE & SMART CACHE BUSTER
         // ==========================================
-        const APP_VERSION = '27.3'; // Hard update version
+        const APP_VERSION = '27.4'; // Hard update version
         
         function checkAppVersion() {
             const savedVersion = localStorage.getItem('finance_app_version');
@@ -1820,7 +1820,7 @@
             generateAIForecast(filteredDb); 
         }
 
-        function generateAIForecast(data) { 
+                        function generateAIForecast(data) { 
             const box = document.getElementById('aiInsightBox'); const textEl = document.getElementById('aiInsightText'); aiMessages = []; 
             if (data.length === 0) { 
                 aiMessages.push("Belum ada data transaksi. Ayo mulai catat aktivitas keuanganmu!");
@@ -1833,27 +1833,59 @@
             let mIn = masukData.reduce((sum, t) => sum + t.amount, 0); let mOut = keluarData.reduce((sum, t) => sum + t.amount, 0); 
             const daysInMonth = new Date(today.getFullYear(), today.getMonth() + 1, 0).getDate(); 
             
-            function calculateProjection(txArray, totalAmount) { if (txArray.length === 0) return 0; if (txArray.length === 1) return totalAmount; const sorted = [...txArray].sort((a,b) => new Date(a.date) - new Date(b.date)); const firstDate = new Date(sorted[0].date).getDate(); const lastDate = new Date(sorted[sorted.length-1].date).getDate(); let spanDays = lastDate - firstDate; if (spanDays === 0) spanDays = 1; const rate = spanDays / (txArray.length - 1); const futureTxCount = Math.floor((daysInMonth - lastDate) / rate); return totalAmount + (futureTxCount * (totalAmount / txArray.length)); } 
+            // LOGIKA BARU: Prediksi linier yang jauh lebih realistis (hanya untuk dompet harian)
+            function calculateProjection(totalAmount) { 
+                if (totalAmount === 0) return 0; 
+                const currentDay = today.getDate(); 
+                return (totalAmount / currentDay) * daysInMonth; 
+            } 
             
             let biggestExpenseMsg = "Belum ada data pengeluaran bulan ini untuk dianalisis.";
             if (keluarData.length > 0) { let catTotals = {}; keluarData.forEach(t => { catTotals[t.category] = (catTotals[t.category] || 0) + t.amount; }); let biggestCat = Object.keys(catTotals).reduce((a, b) => catTotals[a] > catTotals[b] ? a : b); biggestExpenseMsg = `Pengeluaran terbesarmu bulan ini tersedot di ${properTitleCase(biggestCat)} (${formatRp(catTotals[biggestCat])}).`; }
             
             if(APP_MODE === 'GUEST') aiMessages.push("Info: Wajib login (Google) jika ingin fitur Auto-Sync aktif!");
             aiMessages.push("Info: Saldo harian wajib diisi, karena akan mutasi otomatis dari dompet ke tabungan."); 
-            
-            // PESAN SUPPORT DEVELOPER DI KOTAK AI
             aiMessages.push("💡 Tips: Dukung developer aplikasi ini dengan cara traktir di menu Profil!");
             
             let statusMsg = "", projectionMsg = "";
             if (activeWallet === 'harian') { 
                 if (mOut > mIn && mIn > 0) { statusMsg = "⚠️ Peringatan! Total pengeluaran harianmu telah melampaui uang masuk bulan ini."; projectionMsg = "Saran AI: Segera kurangi pengeluaran agar keuangan tidak defisit di akhir bulan!"; box.style.borderLeftColor = 'var(--merah)'; box.querySelector('svg').style.color = 'var(--merah)'; } 
-                else if (mOut > 0) { let forecastOut = calculateProjection(keluarData, mOut); statusMsg = "Aktivitas kas berjalan normal sesuai rutinitas harianmu."; if (keluarData.length === 1) { projectionMsg = `AI mencatat baru 1 pengeluaran harian (${formatRp(mOut)}). Belum ada pola terbaca.`; } else { projectionMsg = `Membaca Pola: Proyeksi pengeluaran harianmu di akhir bulan berpotensi mencapai ${formatRp(Math.round(forecastOut))}.`; } box.style.borderLeftColor = 'var(--kuning)'; box.querySelector('svg').style.color = 'var(--kuning)'; } 
+                else if (mOut > 0) { 
+                    let forecastOut = calculateProjection(mOut); 
+                    statusMsg = "Aktivitas kas berjalan normal sesuai rutinitas harianmu."; 
+                    projectionMsg = `Membaca Pola: Proyeksi pengeluaran harianmu di akhir bulan berpotensi mencapai ${formatRp(Math.round(forecastOut))}.`; 
+                    box.style.borderLeftColor = 'var(--kuning)'; box.querySelector('svg').style.color = 'var(--kuning)'; 
+                } 
                 else if (mIn > 0 && mOut === 0) { statusMsg = "Awal yang luar biasa! Aset harianmu bulan ini masih utuh 100%."; projectionMsg = "Pertahankan! Jangan biarkan pengeluaran impulsif merusak rekor ini."; box.style.borderLeftColor = 'var(--hijau)'; box.querySelector('svg').style.color = 'var(--hijau)'; } 
                 else { statusMsg = "Belum ada pergerakan kas harian di bulan ini."; projectionMsg = "Tips: Catat pemasukan pertamamu untuk memulai analitik cerdas!"; box.style.borderLeftColor = 'var(--biru)'; box.querySelector('svg').style.color = 'var(--biru)';}
             } else { 
-                if (mOut > mIn && mIn > 0) { statusMsg = "⚠️ Tabungan defisit! Penarikan danamu bulan ini menghabiskan semua yang disetor."; projectionMsg = "Saran AI: Segera kembalikan dana brankas tabungan yang terpakai!"; box.style.borderLeftColor = 'var(--merah)'; box.querySelector('svg').style.color = 'var(--merah)'; } 
-                else if (mIn > 0) { let projectedSavings = Math.round(calculateProjection(masukData, mIn) - calculateProjection(keluarData, mOut)); statusMsg = "Status Brankas: Pertumbuhan tabunganmu sedang berjalan dengan baik."; if (masukData.length === 1 && keluarData.length === 0) { projectionMsg = `Kamu menyetor ${formatRp(mIn)}. Pertahankan secara rutin agar AI bisa memproyeksi.`; box.style.borderLeftColor = 'var(--hijau)'; box.querySelector('svg').style.color = 'var(--hijau)'; } else if (projectedSavings > 0) { projectionMsg = `Berdasarkan rutinitasmu, potensi saldo tabungan di akhir bulan bisa menembus ${formatRp(projectedSavings)}!`; box.style.borderLeftColor = 'var(--hijau)'; box.querySelector('svg').style.color = 'var(--hijau)'; } else { projectionMsg = "Waspada! Proyeksi AI membaca saldomu akan habis di akhir bulan karena tarikan yang besar."; box.style.borderLeftColor = 'var(--kuning)'; box.querySelector('svg').style.color = 'var(--kuning)'; } } 
-                else if (mIn === 0 && mOut === 0) { statusMsg = "Brankas tabunganmu belum ada aktivitas bulan ini."; projectionMsg = "Tips: Yuk, mulai sisihkan uangmu hari ini untuk disetor ke tabungan!"; box.style.borderLeftColor = 'var(--biru)'; box.querySelector('svg').style.color = 'var(--biru)'; } 
+                // LOGIKA BARU TABUNGAN: Fokus ke uang yang berhasil di-save, bukan diprediksi harian
+                if (mOut > mIn && mIn > 0) { 
+                    statusMsg = "⚠️ Tabungan defisit! Penarikan danamu bulan ini menghabiskan semua yang disetor."; 
+                    projectionMsg = `Saran AI: Segera kembalikan dana sebesar ${formatRp(mOut - mIn)} yang terpakai!`; 
+                    box.style.borderLeftColor = 'var(--merah)'; box.querySelector('svg').style.color = 'var(--merah)'; 
+                } 
+                else if (mIn > 0) { 
+                    let netSavings = mIn - mOut; 
+                    statusMsg = "Status Brankas: Pertumbuhan tabunganmu sedang berjalan."; 
+                    if (netSavings > 0) { 
+                        projectionMsg = `Bulan ini kamu berhasil menyisihkan bersih ${formatRp(netSavings)} ke tabungan. Hebat, pertahankan konsistensi ini!`; 
+                        box.style.borderLeftColor = 'var(--hijau)'; box.querySelector('svg').style.color = 'var(--hijau)'; 
+                    } else { 
+                        projectionMsg = "Saldo yang masuk bulan ini sudah habis ditarik. Yuk, coba kurangi penarikan tabungan!"; 
+                        box.style.borderLeftColor = 'var(--kuning)'; box.querySelector('svg').style.color = 'var(--kuning)'; 
+                    } 
+                } 
+                else if (mIn === 0 && mOut === 0) { 
+                    statusMsg = "Brankas tabunganmu belum ada aktivitas bulan ini."; 
+                    projectionMsg = "Tips: Yuk, mulai sisihkan uangmu hari ini untuk disetor ke tabungan!"; 
+                    box.style.borderLeftColor = 'var(--biru)'; box.querySelector('svg').style.color = 'var(--biru)'; 
+                }
+                else if (mIn === 0 && mOut > 0) {
+                    statusMsg = "⚠️ Bahaya! Kamu menarik tabungan tanpa ada setoran bulan ini.";
+                    projectionMsg = "Saran AI: Jangan biarkan brankasmu kosong, usahakan ganti uang yang ditarik ya!";
+                    box.style.borderLeftColor = 'var(--merah)'; box.querySelector('svg').style.color = 'var(--merah)';
+                }
             } 
             aiMessages.push(statusMsg); aiMessages.push(projectionMsg); aiMessages.push(biggestExpenseMsg);
             aiMessages = [...new Set(aiMessages)].filter(m => m !== "");
