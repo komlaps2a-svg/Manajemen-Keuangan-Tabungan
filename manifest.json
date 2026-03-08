@@ -1,6 +1,6 @@
 {
-  "name": "Enterprise Finance Dashboard",
-  "short_name": "Finance Daeng",
+  "name": "Enterprise Finance Pay",
+  "short_name": "Finance Pay",
   "description": "Aplikasi Manajemen Keuangan Pribadi",
   "start_url": "./index.html",
   "display": "standalone",
