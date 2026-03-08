@@ -526,6 +526,26 @@
         </div>
     </div>
 
+        <div class="modal-overlay" id="loanPaymentModal">
+        <div class="modal-card" style="max-width: 320px; text-align: center;">
+            <h2 style="margin-top:0; color: var(--kuning);">Bayar Pinjaman</h2>
+            <div class="modal-msg" id="loanPaymentMsg" style="margin-bottom: 15px; font-size: 13px; color: var(--text-muted); line-height: 1.5;">Sisa Pinjaman: Rp 0</div>
+            <input type="hidden" id="loanPaymentId">
+            <input type="hidden" id="loanMaxAmount">
+
+            <button class="btn-modal" style="background: var(--kuning); color: var(--hitam); margin-bottom: 15px; display:flex; align-items:center; justify-content:center; gap:8px;" onclick="setFullLoanAmount()">
+                <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M22 11.08V12a10 10 0 1 1-5.93-9.14"></path><polyline points="22 4 12 14.01 9 11.01"></polyline></svg>
+                LUNASKAN SEMUA
+            </button>
+
+            <label style="font-size: 12px; font-weight: 800; color: var(--text-muted); text-transform: uppercase; margin-bottom: 8px; display: block;">Atau Ketik Cicilan (Rp)</label>
+            <input type="text" id="loanPaymentInput" class="input-field text-kuning" inputmode="numeric" placeholder="0" style="text-align: center; font-size: 26px; font-weight: 900; margin-bottom: 20px; letter-spacing: 2px;" oninput="let v = this.value.replace(/[^0-9]/g, ''); this.value = v ? parseInt(v, 10).toLocaleString('id-ID') : '';">
+
+            <button class="btn-modal" id="btnProsesLoan" style="background: var(--hijau); color: var(--hitam);" onclick="processLoanPayment()">Proses Pembayaran</button>
+            <button class="btn-modal btn-cancel" onclick="closeModal('loanPaymentModal')">Batal</button>
+        </div>
+    </div>
+
     <div class="modal-overlay" id="txPinModal">
         <div class="modal-card" style="max-width: 320px; text-align: center;">
             <h2 style="margin-top:0; color: var(--kuning);" id="txPinTitle">Sandi Transaksi</h2>
@@ -662,7 +682,7 @@
         // ==========================================
         // 1. SISTEM AUTO-UPDATE & SMART CACHE BUSTER
         // ==========================================
-        const APP_VERSION = '27.2'; // Hard update version
+        const APP_VERSION = '27.3'; // Hard update version
         
         function checkAppVersion() {
             const savedVersion = localStorage.getItem('finance_app_version');
@@ -1576,59 +1596,84 @@
             rawAmount = parseInt(v, 10); this.value = rawAmount.toLocaleString('id-ID'); 
         });
         
-        function lunasiPinjaman(e, txId) { 
+                function lunasiPinjaman(e, txId) { 
             e.stopPropagation(); 
             promptTxPin(() => { 
                 const strTxId = String(txId); 
                 const idx = db.findIndex(t => String(t.id) === strTxId || String(t.date) === strTxId); 
                 if(idx > -1) { 
                     const tx = db[idx]; 
-                    const targetWallet = tx.wallet; 
-                    const walletName = targetWallet === 'harian' ? 'Dompet Harian' : 'Tabungan'; 
-                    openCustomConfirm("Pelunasan Pinjaman", `Uang senilai <b>${formatRp(tx.amount)}</b> dari <b>${tx.borrower}</b> sudah lunas ke <b>${walletName}</b>?`, async () => { 
-                        const deskripsiLunas = properTitleCase(`Lunas: ${tx.desc} (${tx.borrower})`); 
-                        const lData = { wallet: targetWallet, type: 'masuk', category: 'Lunas Pinjaman', desc: deskripsiLunas, borrower: tx.borrower, amount: tx.amount, date: new Date().toISOString() }; 
-                        
-                        if(APP_MODE === 'CLOUD') {
-                            if (navigator.onLine && sbClient && (!currentUser || currentUser.id !== 'offline_user')) {
-                                try {
-                                    lData.user_id = currentUser.id; 
-                                    const updatePromise = sbClient.from('transactions').update({ status: 'lunas_pinjaman' }).eq('id', tx.id);
-                                    const insertPromise = sbClient.from('transactions').insert([lData]);
-                                    const timeoutPromise = new Promise((_, reject) => setTimeout(() => reject(new Error('Timeout Server')), 5000));
-                                    
-                                    await Promise.race([Promise.all([updatePromise, insertPromise]), timeoutPromise]);
-                                    await fetchUserTransactions(); 
-                                    showToast(`Pinjaman Lunas di Cloud`, "success");
-                                } catch(err) {
-                                    db[idx].status = 'lunas_pinjaman'; 
-                                    lData.id = Date.now(); 
-                                    db.push(lData); 
-                                    pendingSync.push(lData); 
-                                    savePendingSync(); saveLocalDB(db); 
-                                    updateUI(document.getElementById('searchTxInput') ? document.getElementById('searchTxInput').value : ''); 
-                                    showToast(`Pinjaman Lunas (Menunggu Sync)`, "syncing");
-                                }
-                            } else {
-                                db[idx].status = 'lunas_pinjaman'; 
-                                lData.id = Date.now(); 
-                                db.push(lData); 
-                                pendingSync.push(lData); 
-                                savePendingSync(); saveLocalDB(db); 
-                                updateUI(document.getElementById('searchTxInput') ? document.getElementById('searchTxInput').value : ''); 
-                                showToast(`Pinjaman Lunas (Menunggu Sync)`, "syncing");
-                            }
-                        } else { 
-                            db[idx].status = 'lunas_pinjaman'; 
-                            lData.id = Date.now(); 
-                            db.push(lData); 
-                            saveLocalDB(db); 
-                            updateUI(document.getElementById('searchTxInput') ? document.getElementById('searchTxInput').value : ''); 
-                            showToast(`Pinjaman Lunas (Lokal)`, "success"); 
-                        } 
-                    }); 
+                    let sisa = tx.status === 'dipinjam' ? tx.amount : parseInt(tx.status.split('_')[1]);
+
+                    document.getElementById('loanPaymentId').value = strTxId;
+                    document.getElementById('loanMaxAmount').value = sisa;
+                    document.getElementById('loanPaymentMsg').innerHTML = `Peminjam: <b style="color:var(--putih);">${tx.borrower}</b><br>Sisa Pinjaman: <b style="color:var(--kuning);">${formatRp(sisa)}</b>`;
+                    document.getElementById('loanPaymentInput').value = '';
+                    document.getElementById('loanPaymentModal').classList.add('active'); 
                 } 
             }); 
+        }
+
+        function setFullLoanAmount() {
+            const maxAmt = document.getElementById('loanMaxAmount').value;
+            document.getElementById('loanPaymentInput').value = parseInt(maxAmt, 10).toLocaleString('id-ID');
+        }
+
+        async function processLoanPayment() {
+            const strTxId = document.getElementById('loanPaymentId').value;
+            const inputVal = document.getElementById('loanPaymentInput').value.replace(/[^0-9]/g, '');
+            const payAmount = parseInt(inputVal, 10);
+            const idx = db.findIndex(t => String(t.id) === strTxId || String(t.date) === strTxId);
+
+            if(idx === -1 || isNaN(payAmount) || payAmount <= 0) { showToast("Nominal tidak valid!", "error"); return; }
+
+            const tx = db[idx];
+            let sisa = tx.status === 'dipinjam' ? tx.amount : parseInt(tx.status.split('_')[1]);
+
+            if (payAmount > sisa) { showToast("Melebihi sisa pinjaman!", "error"); return; }
+
+            const btn = document.getElementById('btnProsesLoan');
+            if (btn.disabled) return;
+            btn.disabled = true; btn.innerText = "Memproses...";
+
+            try {
+                const targetWallet = tx.wallet;
+                let isFull = (payAmount === sisa);
+                let newStatus = isFull ? 'lunas_pinjaman' : `cicil_${sisa - payAmount}`;
+                const deskripsiLunas = isFull ? properTitleCase(`Lunas: ${tx.desc} (${tx.borrower})`) : properTitleCase(`Cicilan: ${tx.desc} (${tx.borrower})`);
+
+                const lData = { wallet: targetWallet, type: 'masuk', category: isFull ? 'Lunas Pinjaman' : 'Cicilan Masuk', desc: deskripsiLunas, borrower: tx.borrower, amount: payAmount, date: new Date().toISOString(), status: isFull ? 'lunas_pinjaman' : 'cicilan_masuk' };
+
+                if(APP_MODE === 'CLOUD') {
+                    if (navigator.onLine && sbClient && (!currentUser || currentUser.id !== 'offline_user')) {
+                        try {
+                            lData.user_id = currentUser.id;
+                            const updatePromise = sbClient.from('transactions').update({ status: newStatus }).eq('id', tx.id);
+                            const insertPromise = sbClient.from('transactions').insert([lData]);
+                            const timeoutPromise = new Promise((_, reject) => setTimeout(() => reject(new Error('Timeout Server')), 5000));
+                            
+                            await Promise.race([Promise.all([updatePromise, insertPromise]), timeoutPromise]);
+                            await fetchUserTransactions();
+                            showToast(isFull ? "Pinjaman Lunas di Cloud" : "Cicilan Masuk ke Cloud", "success");
+                        } catch(err) {
+                            db[idx].status = newStatus; lData.id = Date.now(); db.push(lData); pendingSync.push(lData);
+                            savePendingSync(); saveLocalDB(db); updateUI(document.getElementById('searchTxInput') ? document.getElementById('searchTxInput').value : '');
+                            showToast("Tersimpan (Menunggu Sync)", "syncing");
+                        }
+                    } else {
+                        db[idx].status = newStatus; lData.id = Date.now(); db.push(lData); pendingSync.push(lData);
+                        savePendingSync(); saveLocalDB(db); updateUI(document.getElementById('searchTxInput') ? document.getElementById('searchTxInput').value : '');
+                        showToast("Tersimpan (Menunggu Sync)", "syncing");
+                    }
+                } else {
+                    db[idx].status = newStatus; lData.id = Date.now(); db.push(lData);
+                    saveLocalDB(db); updateUI(document.getElementById('searchTxInput') ? document.getElementById('searchTxInput').value : '');
+                    showToast(isFull ? "Pinjaman Lunas (Lokal)" : "Cicilan Diterima (Lokal)", "success");
+                }
+                closeModal('loanPaymentModal');
+            } finally {
+                btn.disabled = false; btn.innerText = "Proses Pembayaran";
+            }
         }
         
         async function checkAndAutoLunasHutang() { 
@@ -1901,14 +1946,25 @@
             [...data].sort((a,b) => new Date(b.date) - new Date(a.date)).forEach(tx => {
                 const iM = tx.type === 'masuk'; let c = getDynamicColor(tx.category, tx.type);
                 let dr = `<span style="font-weight:700;">${tx.desc}</span>`;
-                if(tx.status === 'dipinjam') dr = `<span style="font-weight:700; color:#a855f7;">${tx.desc}</span><br><span style="font-size:11px; color:var(--text-muted);">Dipinjamkan ke: <b style="color:var(--kuning);">${tx.borrower}</b></span>`;
-                else if (tx.status === 'lunas_pinjaman' && tx.borrower) dr = `<span style="font-weight:700; color:var(--hijau);">${tx.desc}</span><br><span style="font-size:11px; color:var(--text-muted);">Peminjam: <b style="color:var(--putih);">${tx.borrower}</b></span>`;
+                    if(tx.status === 'dipinjam' || String(tx.status).startsWith('cicil_')) {
+                    let sisaInfo = '';
+                    if(String(tx.status).startsWith('cicil_')) {
+                        let sisa = parseInt(tx.status.split('_')[1]);
+                        sisaInfo = `<br><span style="font-size:11px; color:var(--oranye); font-weight:800;">Sisa Pinjaman: ${formatRp(sisa)}</span>`;
+                    }
+                    dr = `<span style="font-weight:700; color:#a855f7;">${tx.desc}</span><br><span style="font-size:11px; color:var(--text-muted);">Peminjam: <b style="color:var(--kuning);">${tx.borrower}</b></span>${sisaInfo}`;
+                }
+                else if ((tx.status === 'lunas_pinjaman' || tx.status === 'cicilan_masuk') && tx.borrower) dr = `<span style="font-weight:700; color:var(--hijau);">${tx.desc}</span><br><span style="font-size:11px; color:var(--text-muted);">Peminjam: <b style="color:var(--putih);">${tx.borrower}</b></span>`;
                 
                 let cr = `<div class="badge-cat" style="border: 1px solid ${c}; color:${c}; background:rgba(0,0,0,0.5);">${tx.category}</div>`;
                 if(tx.status === 'hutang') cr = `<div class="badge-cat" style="border: 1px solid var(--merah); color:var(--merah); background:rgba(239,68,68,0.2);">HUTANG</div>`;
                 else if (tx.status === 'lunas_hutang') cr = `<div class="badge-cat" style="border: 1px solid var(--hijau); color:var(--hijau); background:rgba(16,185,129,0.1);">LUNAS</div>`;
-                else if (tx.status === 'dipinjam') cr = `<div style="display:flex; flex-direction:column; gap:5px;"><div class="badge-cat" style="border: 1px solid #a855f7; color:#a855f7; background:rgba(168,85,247,0.2);">DIPINJAM</div><button class="btn-lunasi" onclick="lunasiPinjaman(event, '${tx.id || tx.date}')">${svgs.check} TANDAI LUNAS</button></div>`;
-                else if (tx.status === 'lunas_pinjaman') cr = `<div class="badge-cat" style="border: 1px solid var(--hijau); color:var(--hijau); background:rgba(16,185,129,0.1);">LUNAS</div>`;
+                else if (tx.status === 'dipinjam' || String(tx.status).startsWith('cicil_')) {
+                    let btnText = String(tx.status).startsWith('cicil_') ? 'DICICIL' : 'DIPINJAM';
+                    cr = `<div style="display:flex; flex-direction:column; gap:5px;"><div class="badge-cat" style="border: 1px solid #a855f7; color:#a855f7; background:rgba(168,85,247,0.2);">${btnText}</div><button class="btn-lunasi" onclick="lunasiPinjaman(event, '${tx.id || tx.date}')">${svgs.check} BAYAR</button></div>`;
+                }
+                        else if (tx.status === 'lunas_pinjaman') cr = `<div class="badge-cat" style="border: 1px solid var(--hijau); color:var(--hijau); background:rgba(16,185,129,0.1);">LUNAS</div>`;
+                else if (tx.status === 'cicilan_masuk') cr = `<div class="badge-cat" style="border: 1px solid var(--kuning); color:var(--kuning); background:rgba(245,158,11,0.1);">CICILAN</div>`;
 
                 t.innerHTML += `<tr class="clickable-row" onclick="openReceipt('${tx.id || tx.date}')"><td style="color:var(--text-muted); font-size:11px;">${formatDetailDate(tx.date).split(' - ')[0]}<br>${formatDetailDate(tx.date).split(' - ')[1]}</td><td>${cr}</td><td>${dr}</td><td class="amt-cell" style="color:${iM?'var(--biru)':'var(--merah)'};">${iM?'+':'-'}${formatRp(tx.amount)}</td></tr>`;
             });
