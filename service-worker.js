@@ -1,4 +1,4 @@
-const CACHE_NAME = 'finance-pos-cache-v29';
+const CACHE_NAME = 'finance-daeng-v27.2'; // Nama cache khusus aplikasi finance
 const urlsToCache = [
   './',
   './index.html',
@@ -6,18 +6,19 @@ const urlsToCache = [
   './icon-192x192.png'
 ];
 
-// Install Service Worker & Simpan Cache
+// Tahap Install: Simpan semua file penting ke Cache HP
 self.addEventListener('install', event => {
+  self.skipWaiting(); // Memaksa Service Worker baru buat langsung aktif
   event.waitUntil(
     caches.open(CACHE_NAME)
       .then(cache => {
-        console.log('Membuka cache...');
+        console.log('Cache berhasil dibuka');
         return cache.addAll(urlsToCache);
       })
   );
 });
 
-// Bersihkan Cache Lama jika ada Update
+// Tahap Activate: Bersihkan sisa-sisa Cache versi lama biar memori HP nggak penuh
 self.addEventListener('activate', event => {
   event.waitUntil(
     caches.keys().then(cacheNames => {
@@ -29,20 +30,29 @@ self.addEventListener('activate', event => {
           }
         })
       );
-    })
+    }).then(() => self.clients.claim()) // Langsung ambil alih halaman yang lagi kebuka
   );
 });
 
-// Cegat Request Jaringan & Berikan Cache saat Offline
+// Tahap Fetch (Strategi: Network First, Fallback to Cache)
 self.addEventListener('fetch', event => {
   event.respondWith(
-    caches.match(event.request)
+    fetch(event.request)
       .then(response => {
-        // Jika ada di cache, berikan cache. Jika tidak, ambil dari internet.
-        return response || fetch(event.request).catch(() => {
-            // Logika fallback jika benar-benar tidak ada internet dan file belum di-cache
-            console.warn('Akses ditolak: File belum masuk cache dan Anda sedang offline.');
-        });
+        // Kalau online dan sukses dapat data terbaru dari server, simpan ke cache
+        if (!response || response.status !== 200 || response.type !== 'basic') {
+          return response;
+        }
+        const responseToCache = response.clone();
+        caches.open(CACHE_NAME)
+          .then(cache => {
+            cache.put(event.request, responseToCache);
+          });
+        return response;
+      })
+      .catch(() => {
+        // Kalau gagal fetch (berarti lagi OFFLINE/Sinyal jelek), ambil dari Cache
+        return caches.match(event.request);
       })
   );
 });
