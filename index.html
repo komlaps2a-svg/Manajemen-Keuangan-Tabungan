@@ -305,10 +305,9 @@
             box-shadow: 0 10px 20px rgba(10, 17, 40, 0.2) !important;
             backdrop-filter: none !important; /* Matikan blur yang bikin nyaru */
         }
-        [data-theme="light"] .profile-header .profile-name { color: #ffffff !important; }
-        [data-theme="light"] .profile-header .profile-title { color: #94a3b8 !important; }
-        [data-theme="light"] .health-badge { background: rgba(255,255,255,0.1) !important; border-color: rgba(255,255,255,0.3) !important; color: #ffffff !important;}
-        [data-theme="light"] .health-badge span { color: #e2e8f0 !important; }
+       /* Cabut paksaan warna border dan teks putih biar warna dinamis (hijau/kuning/merah) bisa muncul */
+        [data-theme="light"] .health-badge { background: rgba(255,255,255,0.05) !important; }
+        [data-theme="light"] .health-badge span { color: inherit !important; opacity: 0.8; }
 
                 /* 3. KOTAK/CARD: Putih Murni + Shadow 3D Premium Berlapis */
         [data-theme="light"] .expand-item,
@@ -910,7 +909,7 @@
         // ==========================================
         // 1. SISTEM AUTO-UPDATE & SMART CACHE BUSTER
         // ==========================================
-        const APP_VERSION = '27.6'; // Hard update version
+        const APP_VERSION = '27.7'; // Hard update version
         
         function checkAppVersion() {
             const savedVersion = localStorage.getItem('finance_app_version');
