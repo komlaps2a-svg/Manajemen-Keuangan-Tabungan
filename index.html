@@ -575,31 +575,32 @@
        /* =========================================================
            FIX: WARNA ANGKA SALDO DI LIGHT MODE (PREMIUM CONTRAST)
            ========================================================= */
-        [data-theme="light"] .card-value.text-hijau { 
-            color: #059669 !important; /* Hijau Emerald pekat, bukan neon */
-        }
-        [data-theme="light"] .card-value.text-biru { 
-            color: #2563eb !important; /* Biru Royal gelap */
-        }
-        [data-theme="light"] .card-value.text-merah { 
-            color: #dc2626 !important; /* Merah Crimson pekat */
-        }
+        [data-theme="light"] .card-value.text-hijau { color: #059669 !important; }
+        [data-theme="light"] .card-value.text-biru { color: #2563eb !important; }
+        [data-theme="light"] .card-value.text-merah { color: #dc2626 !important; }
 
         /* =========================================================
-           FIX BUG: RENDER BLANK DI RIWAYAT (FORCE GPU ACCELERATION)
+           FIX BUG NUKLIR: RENDER BLANK DI RIWAYAT & GRAFIK (GPU 3D ACCELERATION)
            ========================================================= */
-        .collapsible-content, .table-container {
-            /* Paksa mesin browser memindahkan rendering ke GPU */
-            transform: translateZ(0) !important;
-            -webkit-transform: translateZ(0) !important;
+        .table-container, 
+        .table-container table, 
+        .table-container tbody, 
+        .table-container tr, 
+        .table-container td,
+        .chart-container,
+        canvas {
+            /* Paksa mesin memindahkan rendering elemen berat ini ke GPU 100% */
+            -webkit-transform: translate3d(0, 0, 0) !important;
+            transform: translate3d(0, 0, 0) !important;
             
-            /* Kunci visibilitas belakang biar gak nge-flicker */
-            backface-visibility: hidden !important;
+            /* Kunci visibilitas belakang biar gak nge-blank atau flicker saat di-scroll */
             -webkit-backface-visibility: hidden !important;
+            backface-visibility: hidden !important;
             
-            /* Beritahu browser elemen ini bakal sering berubah */
-            will-change: max-height, opacity, transform;
+            /* Anti-aliasing paksa biar teks tabel dan garis grafik langsung solid */
+            -webkit-font-smoothing: antialiased !important;
         }
+
     </style>
 </head>
 <body>
@@ -1025,7 +1026,7 @@
         // ==========================================
         // 1. SISTEM AUTO-UPDATE & SMART CACHE BUSTER
         // ==========================================
-        const APP_VERSION = '28.2'; // Hard update version
+        const APP_VERSION = '28.4'; // Hard update version
         
         function checkAppVersion() {
             const savedVersion = localStorage.getItem('finance_app_version');
@@ -2512,6 +2513,24 @@
                 window.location.reload();
             });
         }
+
+        // =========================================================
+        // FIX BUG: GRAFIK NGE-BLANK & MENGECIL SAAT BALIK KE APLIKASI
+        // =========================================================
+        document.addEventListener("visibilitychange", () => {
+            if (document.visibilityState === "visible") {
+                // Kasih napas 300ms biar browser selesai menghitung ulang ukuran kotak CSS
+                setTimeout(() => {
+                    if (typeof Chart !== 'undefined') {
+                        for (let id in Chart.instances) {
+                            // Paksa baca ulang ukuran dimensi kotak aslinya, baru digambar
+                            Chart.instances[id].resize();
+                            Chart.instances[id].update();
+                        }
+                    }
+                }, 300);
+            }
+        });
 
     </script>
 </body>
