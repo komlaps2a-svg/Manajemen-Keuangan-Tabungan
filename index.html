@@ -909,7 +909,7 @@
         // ==========================================
         // 1. SISTEM AUTO-UPDATE & SMART CACHE BUSTER
         // ==========================================
-        const APP_VERSION = '27.7'; // Hard update version
+        const APP_VERSION = '27.8'; // Hard update version
         
         function checkAppVersion() {
             const savedVersion = localStorage.getItem('finance_app_version');
@@ -2047,11 +2047,16 @@
             generateAIForecast(filteredDb); 
         }
 
-                        function generateAIForecast(data) { 
+            function generateAIForecast(data) { 
             const box = document.getElementById('aiInsightBox'); const textEl = document.getElementById('aiInsightText'); aiMessages = []; 
             if (data.length === 0) { 
                 aiMessages.push("Belum ada data transaksi. Ayo mulai catat aktivitas keuanganmu!");
                 if(APP_MODE === 'GUEST') aiMessages.push("Info: Hubungkan dengan Google agar datamu tersimpan aman di Cloud.");
+                
+                // FIX: Paksa reset warna ke netral (Biru) kalau data kosong biar warna tab sebelumnya gak nyangkut
+                box.style.borderLeftColor = 'var(--biru)'; 
+                box.querySelector('svg').style.color = 'var(--biru)';
+                
                 startAICarousel(textEl); return; 
             } 
             
