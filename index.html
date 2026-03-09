@@ -584,10 +584,26 @@
         [data-theme="light"] .card-value.text-merah { 
             color: #dc2626 !important; /* Merah Crimson pekat */
         }
+
+        /* =========================================================
+           FIX BUG: RENDER BLANK DI RIWAYAT (FORCE GPU ACCELERATION)
+           ========================================================= */
+        .collapsible-content, .table-container {
+            /* Paksa mesin browser memindahkan rendering ke GPU */
+            transform: translateZ(0) !important;
+            -webkit-transform: translateZ(0) !important;
+            
+            /* Kunci visibilitas belakang biar gak nge-flicker */
+            backface-visibility: hidden !important;
+            -webkit-backface-visibility: hidden !important;
+            
+            /* Beritahu browser elemen ini bakal sering berubah */
+            will-change: max-height, opacity, transform;
+        }
     </style>
 </head>
 <body>
-    
+
     <div id="updateScreen" style="display:none;">
         <div class="spinner"></div>
         <p style="font-size: 12px; font-weight: 800; color: var(--text-muted); margin-top: 20px; letter-spacing: 1px;">MENERAPKAN UPDATE VERSI BARU...</p>
@@ -1009,7 +1025,7 @@
         // ==========================================
         // 1. SISTEM AUTO-UPDATE & SMART CACHE BUSTER
         // ==========================================
-        const APP_VERSION = '28.0'; // Hard update version
+        const APP_VERSION = '28.1'; // Hard update version
         
         function checkAppVersion() {
             const savedVersion = localStorage.getItem('finance_app_version');
