@@ -1,4 +1,4 @@
-const CACHE_NAME = 'finance-Pay-v28.3'; // Nama cache di-update biar mesin langsung ngereset
+const CACHE_NAME = 'finance-Pay-v28.4'; // Nama cache di-update biar mesin langsung ngereset
 
 // 1. Masukkan SEMUA link luar (CDN) ke sini biar langsung di-download saat pertama buka web
 const urlsToCache = [
