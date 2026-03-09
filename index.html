@@ -20,10 +20,14 @@
     <script defer type="text/javascript" src="https://cdn.jsdelivr.net/npm/@emailjs/browser@3/dist/email.min.js"></script>
 
     <style>
-        :root {
-            --navy: #0a1128; --hitam: #050814; --hitam-card: #12182b; --putih: #f8fafc;
+            :root {
+            --navy: #030510; /* Background utama: Navy super gelap (hampir hitam) */
+            --hitam-card: #0a1128; /* Profil & Kotak Card: Navy original lu */
+            --hitam: #010206; /* Input text & Dropdown: Paling gelap buat efek lubang (inset) */
+            --putih: #f8fafc;
             --merah: #ef4444; --kuning: #f59e0b; --oranye: #f97316; --hijau: #10b981; --biru: #3b82f6;
-            --border: #1e293b; --text-muted: #64748b;
+            --border: #162036; /* Border sedikit dikalemin biar nge-blend */
+            --text-muted: #64748b;
         }
 
         body {
@@ -909,7 +913,7 @@
         // ==========================================
         // 1. SISTEM AUTO-UPDATE & SMART CACHE BUSTER
         // ==========================================
-        const APP_VERSION = '27.8'; // Hard update version
+        const APP_VERSION = '27.9'; // Hard update version
         
         function checkAppVersion() {
             const savedVersion = localStorage.getItem('finance_app_version');
