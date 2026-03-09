@@ -261,6 +261,90 @@
         .sync-online { background: rgba(16, 185, 129, 0.2); color: var(--hijau); }
         .sync-offline { background: rgba(245, 158, 11, 0.2); color: var(--kuning); }
         .sync-pending { background: rgba(59, 130, 246, 0.2); color: var(--biru); }
+
+       /* === THEME: LIGHT MODE (PREMIUM 3-COLOR HEADER + PURE WHITE BACKGROUND) === */
+        [data-theme="light"] {
+            --navy: #ffffff;      /* Changed: Latar belakang utama sekarang PUTIH MURNI (#ffffff) */
+            --hitam: #e2e8f0;     /* Input/Tab: Abu-abu pemisah */
+            --hitam-card: #f1f5f9;/* Retained: Card/Kotak warna Abu Matte (#f1f5f9) - Kontras maksimal di atas Putih */
+            --putih: #1e293b;     /* Teks Utama: Slate 800 (Tegas, elegan) */
+            --border: #cbd5e1;    /* Garis pembatas */
+            --text-muted: #64748b;
+        }
+
+        /* Trik Gradasi 3 Warna Premium di Header */
+        [data-theme="light"] body {
+            background-color: var(--navy);
+            background-image: linear-gradient(180deg, 
+                #0a1128 0px,    /* Warna 1: Navy gelap di belakang bar profil */
+                #0a1128 100px,  /* Batas bawah bar profil */
+                #24579c 100px,  /* Warna 2: Biru Muda Tua (Medium Blue premium) dimulai */
+                #24579c 215px,  /* Batas sampai setengah kotak AI */
+                #ffffff 215px,  /* Warna 3: Transisi ke Putih Murni */
+                #ffffff 100%);  /* Putih Murni sampai bawah */
+            background-repeat: no-repeat;
+            min-height: 100vh;
+        }
+
+        /* 1. BAR PROFIL: Pertahankan Identitas Navy Murni */
+        [data-theme="light"] .profile-header {
+            background: #0a1128; /* Solid Navy */
+            border-color: #1e293b;
+            color: #f8fafc;
+            box-shadow: 0 10px 25px rgba(10, 17, 40, 0.15);
+        }
+        [data-theme="light"] .profile-header .profile-name { color: #f8fafc; }
+        [data-theme="light"] .profile-header .profile-title { color: #94a3b8; }
+        [data-theme="light"] .health-badge { background: rgba(255, 255, 255, 0.08); border-color: rgba(255, 255, 255, 0.2); }
+
+        /* 2. CARD/KOTAK MATTE: Kontras Maksimal + 3D Timbul ala Fintech */
+        [data-theme="light"] .expand-item,
+        [data-theme="light"] .table-container,
+        [data-theme="light"] .modal-card,
+        [data-theme="light"] .wallet-switcher {
+            background: var(--hitam-card); /* Warna Abu Matte Premium */
+            /* Multi-layered shadow untuk efek timbul substantif */
+            box-shadow: 
+                0 4px 8px -2px rgba(0, 0, 0, 0.08),
+                0 10px 20px -3px rgba(0, 0, 0, 0.1); 
+            border: 1px solid #ffffff; /* Efek highlight Apple Bezel */
+        }
+
+        /* Penyesuaian Input & Dropdown Sit Over Header Gradient */
+        [data-theme="light"] .custom-select-trigger, 
+        [data-theme="light"] .search-input { 
+            background: #ffffff; color: var(--putih); border-color: var(--border); box-shadow: 0 2px 8px rgba(0,0,0,0.02); 
+        }
+        [data-theme="light"] .input-field { background: #ffffff; color: var(--putih); border: 1px solid var(--border); }
+        [data-theme="light"] th { background: #e2e8f0; color: var(--text-muted); border-bottom: 2px solid var(--border); }
+        [data-theme="light"] td { border-bottom: 1px solid var(--border); }
+
+        /* Kotak Insight AI sits on top of Middle Blue Gradient */
+        [data-theme="light"] .insight-box { 
+            background: #ffffff; /* Putih bersih biar stand out di gradasi biru */
+            border: 1px solid #ffffff; 
+            border-left: 4px solid var(--biru); 
+            box-shadow: 0 4px 15px rgba(0,0,0,0.06); 
+        }
+        [data-theme="light"] .insight-box span { color: var(--putih); }
+
+        /* Teks Tab Switcher */
+        [data-theme="light"] .btn-tab.active { color: #ffffff; text-shadow: none; }
+        [data-theme="light"] .wallet-switcher[data-active="tabungan"] .btn-tab#tab-tabungan { color: #000000; }
+
+        /* Fix Struk / Bill sits on White Background */
+        [data-theme="light"] .receipt-card { background: #ffffff; border-color: var(--border); }
+        [data-theme="light"] .receipt-card::before, 
+        [data-theme="light"] .receipt-card::after { background: var(--navy); border-color: var(--border); }
+        [data-theme="light"] .receipt-head { border-color: var(--border); }
+        [data-theme="light"] .receipt-head h3 { color: var(--putih) !important; }
+
+        /* KOTAK KATEGORI DI RIWAYAT */
+        [data-theme="light"] .badge-cat[style*="rgba(0,0,0,0.5)"] {
+            background: #e2e8f0 !important; /* Abu pekat elegan */
+            border-color: currentColor !important;
+            box-shadow: 0 2px 5px rgba(0,0,0,0.02);
+        }
     </style>
 </head>
 <body>
@@ -287,12 +371,16 @@
         </div>
     </div>
 
-    <div class="controls-header">
-        <div class="wallet-switcher" id="walletSwitchContainer" data-active="harian">
+    <div class="controls-header" style="flex-direction: row; align-items: center; gap: 10px;">
+        <div class="wallet-switcher" style="flex: 1;" id="walletSwitchContainer" data-active="harian">
             <div class="wallet-slider"></div>
             <button class="btn-tab active" onclick="switchWallet('harian')" id="tab-harian">Dompet Harian</button>
             <button class="btn-tab" onclick="switchWallet('tabungan')" id="tab-tabungan">Brankas Tabungan</button>
         </div>
+        
+        <button id="themeToggleBtn" onclick="toggleTheme()" style="background: var(--hitam-card); border: 1px solid var(--border); border-radius: 12px; width: 48px; height: 48px; display: flex; align-items: center; justify-content: center; cursor: pointer; flex-shrink: 0; transition: all 0.3s;">
+            <svg id="theme-icon" viewBox="0 0 24 24" width="22" height="22" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="5"/><path d="M12 1v2M12 21v2M4.22 4.22l1.42 1.42M18.36 18.36l1.42 1.42M1 12h2M21 12h2M4.22 19.78l1.42-1.42M18.36 5.64l1.42-1.42"/></svg>
+        </button>
     </div>
 
     <div class="filter-insight-row">
@@ -645,11 +733,11 @@
         </div>
     </div>
 
-    <div class="modal-overlay" id="receiptModal">
-        <div class="modal-card" style="background: #0f172a;">
+        <div class="modal-overlay" id="receiptModal">
+        <div class="modal-card">
             <div class="receipt-card" id="receiptContent">
             </div>
-            <button class="btn-modal btn-cancel" onclick="closeModal('receiptModal')" style="border-color: #334155; color: #94a3b8; margin-top: 15px;">Tutup Bukti Transaksi</button>
+            <button class="btn-modal btn-cancel" onclick="closeModal('receiptModal')" style="margin-top: 15px;">Tutup Bukti Transaksi</button>
         </div>
     </div>
 
@@ -682,7 +770,7 @@
         // ==========================================
         // 1. SISTEM AUTO-UPDATE & SMART CACHE BUSTER
         // ==========================================
-        const APP_VERSION = '27.4'; // Hard update version
+        const APP_VERSION = '27.5'; // Hard update version
         
         function checkAppVersion() {
             const savedVersion = localStorage.getItem('finance_app_version');
@@ -1906,7 +1994,7 @@
             } 
         }
 
-        function openReceipt(txId) { 
+            function openReceipt(txId) { 
             const strTxId = String(txId); const tx = db.find(t => String(t.id) === strTxId || String(t.date) === strTxId); if(!tx) return; 
             const rDate = formatDetailDate(tx.date); const rId = "TRX-" + new Date(tx.date).getTime().toString().slice(-8); 
             const rType = tx.type === 'masuk' ? 'Pemasukan' : 'Pengeluaran'; const rColor = tx.type === 'masuk' ? 'var(--hijau)' : 'var(--merah)'; 
@@ -1921,7 +2009,7 @@
                 <div class="receipt-row"><span class="receipt-label">Sifat</span><span class="receipt-val" style="color:${rColor};">${rType}</span></div> 
                 <div class="receipt-row"><span class="receipt-label">Keterangan</span><span class="receipt-val">${tx.desc}</span></div> 
                 ${tx.borrower ? `<div class="receipt-row"><span class="receipt-label" style="color:var(--kuning);">Peminjam</span><span class="receipt-val" style="color:var(--kuning);">${tx.borrower}</span></div>` : ''} 
-                <div class="receipt-row" style="margin-top:25px; border-top:2px dashed #334155; padding-top:20px; align-items: flex-end;"> 
+                <div class="receipt-row" style="margin-top:25px; border-top:2px dashed var(--border); padding-top:20px; align-items: flex-end;"> 
                     <span class="receipt-label" style="font-size:14px; color:var(--putih);">TOTAL</span> 
                     <span class="receipt-val" style="font-size:24px; color:${rColor}; letter-spacing:-1px;">${formatRp(tx.amount)}</span> 
                 </div> 
@@ -2002,7 +2090,7 @@
             });
         }
 
-        function renderCharts(data) {
+                function renderCharts(data) {
             if (typeof Chart === 'undefined') { console.warn("Sistem Grafik Offline."); return; }
             if (!document.getElementById('pieChart')) return; 
             Chart.defaults.color = '#64748b'; Chart.defaults.font.family = 'Inter';
@@ -2011,22 +2099,25 @@
                 if(pieChart) pieChart.destroy(); if(barChart) barChart.destroy(); if(lineChart) lineChart.destroy();
                 return;
             }
+
+            const currentTheme = document.documentElement.getAttribute('data-theme') || 'dark';
+            const gridLineColor = currentTheme === 'light' ? '#cbd5e1' : '#1e293b';
             
             const cA = {}; 
             data.forEach(t => { const k = `${t.category}`; if(cA[k]) { cA[k].a += t.amount; } else { cA[k] = { a: t.amount, color: getDynamicColor(t.category, t.type) }; } }); 
             const pL = Object.keys(cA);
             
             if(pieChart) pieChart.destroy(); 
-            pieChart = new Chart(document.getElementById('pieChart'), { type: 'doughnut', data: { labels: pL, datasets: [{ data: pL.map(l => cA[l].a), backgroundColor: pL.map(l => cA[l].color), borderWidth: 4, borderColor: '#050814' }] }, options: { responsive: true, maintainAspectRatio: false, plugins: { legend: { display: false }, tooltip: { callbacks: { label: function(c) { return ' ' + formatRp(c.raw); } } } } } });
+            pieChart = new Chart(document.getElementById('pieChart'), { type: 'doughnut', data: { labels: pL, datasets: [{ data: pL.map(l => cA[l].a), backgroundColor: pL.map(l => cA[l].color), borderWidth: 4, borderColor: currentTheme === 'light' ? '#ffffff' : '#050814' }] }, options: { responsive: true, maintainAspectRatio: false, plugins: { legend: { display: false }, tooltip: { callbacks: { label: function(c) { return ' ' + formatRp(c.raw); } } } } } });
 
             const rT = [...data].sort((a,b) => new Date(a.date) - new Date(b.date)).slice(-15);
             if(barChart) barChart.destroy(); 
-            barChart = new Chart(document.getElementById('barChart'), { type: 'bar', data: { labels: rT.map(t => t.desc.substring(0,8)), datasets: [{ data: rT.map(t => t.type === 'masuk' ? t.amount : -t.amount), backgroundColor: rT.map(t => getDynamicColor(t.category, t.type)), borderRadius: 4 }] }, options: { responsive: true, maintainAspectRatio: false, plugins: { legend: { display: false }, tooltip: { callbacks: { label: function(c) { return ' ' + formatRp(Math.abs(c.raw)); } } } }, scales: { x: { display: false }, y: { grid: { color: '#1e293b' } } } } });
+            barChart = new Chart(document.getElementById('barChart'), { type: 'bar', data: { labels: rT.map(t => t.desc.substring(0,8)), datasets: [{ data: rT.map(t => t.type === 'masuk' ? t.amount : -t.amount), backgroundColor: rT.map(t => getDynamicColor(t.category, t.type)), borderRadius: 4 }] }, options: { responsive: true, maintainAspectRatio: false, plugins: { legend: { display: false }, tooltip: { callbacks: { label: function(c) { return ' ' + formatRp(Math.abs(c.raw)); } } } }, scales: { x: { display: false }, y: { grid: { color: gridLineColor } } } } });
 
             let cI = 0, cO = 0, hI = [], hO = []; 
             [...data].sort((a,b)=> new Date(a.date)-new Date(b.date)).forEach(t => { if(t.type === 'masuk') cI += t.amount; else cO += t.amount; hI.push(cI); hO.push(cO); });
             if(lineChart) lineChart.destroy(); 
-            lineChart = new Chart(document.getElementById('lineChart'), { type: 'line', data: { labels: hI.map((_,i)=> `T${i+1}`), datasets: [{ label: 'Pemasukan Total', data: hI, borderColor: '#3b82f6', backgroundColor: 'rgba(59, 130, 246, 0.1)', fill: true, pointRadius: 3, tension: 0.3 }, { label: 'Pengeluaran Total', data: hO, borderColor: '#ef4444', backgroundColor: 'rgba(239, 68, 68, 0.1)', fill: true, pointRadius: 3, tension: 0.3 }] }, options: { responsive: true, maintainAspectRatio: false, plugins: { legend: { display: false }, tooltip: { callbacks: { label: function(c) { return ' ' + formatRp(c.raw); } } } }, scales: { x: { display: false }, y: { grid: { color: '#1e293b' } } } } });
+            lineChart = new Chart(document.getElementById('lineChart'), { type: 'line', data: { labels: hI.map((_,i)=> `T${i+1}`), datasets: [{ label: 'Pemasukan Total', data: hI, borderColor: '#3b82f6', backgroundColor: 'rgba(59, 130, 246, 0.1)', fill: true, pointRadius: 3, tension: 0.3 }, { label: 'Pengeluaran Total', data: hO, borderColor: '#ef4444', backgroundColor: 'rgba(239, 68, 68, 0.1)', fill: true, pointRadius: 3, tension: 0.3 }] }, options: { responsive: true, maintainAspectRatio: false, plugins: { legend: { display: false }, tooltip: { callbacks: { label: function(c) { return ' ' + formatRp(c.raw); } } } }, scales: { x: { display: false }, y: { grid: { color: gridLineColor } } } } });
         }
 
         // ==========================================
@@ -2079,6 +2170,49 @@
             closeModal('otpVerifyModal');
             showToast("PIN Utama berhasil direset!", "success");
         }
+
+        // ==========================================
+        // FITUR DARK / LIGHT MODE
+        // ==========================================
+        const iconSun = `<svg viewBox="0 0 24 24" width="22" height="22" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="5"/><path d="M12 1v2M12 21v2M4.22 4.22l1.42 1.42M18.36 18.36l1.42 1.42M1 12h2M21 12h2M4.22 19.78l1.42-1.42M18.36 5.64l1.42-1.42"/></svg>`;
+        const iconMoon = `<svg viewBox="0 0 24 24" width="22" height="22" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 12.79A9 9 0 1 1 11.21 3 7 7 0 0 0 21 12.79z"/></svg>`;
+
+        const savedTheme = localStorage.getItem('finance_app_theme') || 'dark';
+        document.documentElement.setAttribute('data-theme', savedTheme);
+        
+        window.addEventListener('DOMContentLoaded', () => {
+            updateThemeIcon(savedTheme);
+        });
+
+        function toggleTheme() {
+            const htmlEl = document.documentElement;
+            const currentTheme = htmlEl.getAttribute('data-theme') || 'dark';
+            const newTheme = currentTheme === 'dark' ? 'light' : 'dark';
+            
+            htmlEl.setAttribute('data-theme', newTheme);
+            localStorage.setItem('finance_app_theme', newTheme);
+            updateThemeIcon(newTheme);
+            
+            const searchTerm = document.getElementById('searchTxInput') ? document.getElementById('searchTxInput').value : '';
+            if(typeof updateUI === 'function') updateUI(searchTerm);
+        }
+
+        function updateThemeIcon(theme) {
+            const btn = document.getElementById('themeToggleBtn');
+            if (!btn) return;
+            
+            if (theme === 'light') {
+                btn.innerHTML = iconMoon;
+                btn.style.color = '#64748b'; 
+            } else {
+                btn.innerHTML = iconSun;
+                btn.style.color = 'var(--kuning)'; 
+            }
+        }
+
+        // ==========================================
+        // 13. NYALAKAN MESIN UTAMA & DAFTARKAN PWA/OFFLINE
+        // ==========================================
 
         // ==========================================
         // 13. NYALAKAN MESIN UTAMA & DAFTARKAN PWA/OFFLINE
