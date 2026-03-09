@@ -1,4 +1,4 @@
-const CACHE_NAME = 'finance-Pay-v27.9'; // Nama cache khusus aplikasi finance
+const CACHE_NAME = 'finance-Pay-v28.0'; // Nama cache khusus aplikasi finance
 const urlsToCache = [
   './',
   './index.html',
