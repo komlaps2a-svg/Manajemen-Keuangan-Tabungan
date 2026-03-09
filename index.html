@@ -301,7 +301,7 @@
             min-height: 100vh;
         }
 
-        /* 2. BAR PROFIL: Dikembalikan ke Solid Navy agar teks sangat jelas */
+       /* 2. BAR PROFIL: Dikembalikan ke Solid Navy agar teks sangat jelas */
         [data-theme="light"] .profile-header {
             background: #0a1128 !important;
             border: 1px solid #1e293b !important;
@@ -309,11 +309,15 @@
             box-shadow: 0 10px 20px rgba(10, 17, 40, 0.2) !important;
             backdrop-filter: none !important; /* Matikan blur yang bikin nyaru */
         }
+        /* FIX: Paksa teks nama, role, dan status jaringan jadi terang */
+        [data-theme="light"] #headName { color: #ffffff !important; }
+        [data-theme="light"] #headGender { color: #cbd5e1 !important; letter-spacing: 1px !important; }
+
        /* Cabut paksaan warna border dan teks putih biar warna dinamis (hijau/kuning/merah) bisa muncul */
         [data-theme="light"] .health-badge { background: rgba(255,255,255,0.05) !important; }
         [data-theme="light"] .health-badge span { color: inherit !important; opacity: 0.8; }
 
-                /* 3. KOTAK/CARD: Putih Murni + Shadow 3D Premium Berlapis */
+        /* 3. KOTAK/CARD: Putih Murni + Shadow 3D Premium Berlapis */
         [data-theme="light"] .expand-item,
         [data-theme="light"] .table-container,
         [data-theme="light"] .modal-card,
@@ -488,6 +492,98 @@
         /* 4. Tombol Batal (Abu-abu Kaca) */
         [data-theme="light"] .btn-cancel { background: rgba(241, 245, 249, 0.5) !important; color: #64748b !important; border: 1px solid rgba(203, 213, 225, 0.6) !important; }
         body:not([data-theme="light"]) .btn-cancel { background: rgba(255, 255, 255, 0.05) !important; color: #94a3b8 !important; }
+
+
+        /* =========================================================
+           ULTIMATE PREMIUM: SPLIT BACKGROUND & DEEP 3D SHADOW
+           ========================================================= */
+
+        /* 1. KEMBALIKAN BACKGROUND SPLIT (NAVY & PUTIH) DI LIGHT MODE */
+        [data-theme="light"] body {
+            background-color: #f0f4f8 !important;
+            background-image: linear-gradient(180deg, 
+                #0a1128 0px, 
+                #0a1128 115px, 
+                #1e3a8a 115px, 
+                #1e3a8a 250px, 
+                #f0f4f8 250px, 
+                #f0f4f8 100%) !important;
+            background-repeat: no-repeat;
+            min-height: 100vh;
+        }
+
+        /* FIX TEKS PROFIL DI LIGHT MODE BIAR TETAP PUTIH DI ATAS NAVY */
+        [data-theme="light"] #headName { color: #ffffff !important; }
+        [data-theme="light"] #headGender { color: #cbd5e1 !important; }
+        [data-theme="light"] .health-badge { background: rgba(255,255,255,0.08) !important; }
+
+        /* 2. PROFILE HEADER: SOLID DAN TEGAS */
+        .profile-header {
+            background: var(--hitam-card) !important; 
+            backdrop-filter: none !important; -webkit-backdrop-filter: none !important;
+            border: 1px solid var(--border) !important;
+            box-shadow: 0 15px 35px rgba(0,0,0,0.6) !important; /* Bayangan dalam banget */
+        }
+        [data-theme="light"] .profile-header {
+            background: #0a1128 !important; border: 1px solid #1e293b !important;
+            box-shadow: 0 15px 35px rgba(10, 17, 40, 0.4) !important;
+        }
+
+        /* 3. TEKS TOMBOL BAWAH: ELEGAN/GELAP */
+        .btn-quick span { color: #ffffff !important; font-weight: 800 !important; }
+        [data-theme="light"] .btn-quick span { color: #0f172a !important; }
+
+        /* 4. KOTAK KACA DENGAN KEDALAMAN SHADOW EKSTREM (DARK MODE) */
+        .expand-item, .table-container, .insight-box, .wallet-switcher, .btn-quick {
+            background: rgba(18, 24, 43, 0.65) !important; /* Dongker transparan */
+            backdrop-filter: blur(20px) !important; -webkit-backdrop-filter: blur(20px) !important;
+            
+            /* Garis cahaya di atas untuk mempertegas bentuk kotak */
+            border: 1px solid rgba(255, 255, 255, 0.05) !important;
+            border-top: 1px solid rgba(255, 255, 255, 0.15) !important; 
+            
+            /* KUNCI KEDALAMAN: Drop shadow pekat dan menyebar luas */
+            box-shadow: 0 20px 40px rgba(0, 0, 0, 0.7) !important; 
+        }
+        .insight-box { border-left: 3px solid var(--biru) !important; }
+
+        /* 5. KOTAK KACA DENGAN KEDALAMAN SHADOW EKSTREM (LIGHT MODE) */
+        [data-theme="light"] .expand-item, 
+        [data-theme="light"] .table-container, 
+        [data-theme="light"] .insight-box, 
+        [data-theme="light"] .wallet-switcher,
+        [data-theme="light"] .btn-quick {
+            background: rgba(255, 255, 255, 0.85) !important; /* Putih kaca */
+            backdrop-filter: blur(24px) !important; -webkit-backdrop-filter: blur(24px) !important;
+            
+            /* Border abu-abu transparan untuk memisahkan kotak putih dari background putih */
+            border: 1px solid rgba(203, 213, 225, 0.6) !important; 
+            border-top: 1px solid #ffffff !important; /* Kilat cahaya atas */
+            
+            /* KUNCI KEDALAMAN LIGHT MODE: Shadow harus gelap tapi transparan, dan jangkauannya jauh */
+            box-shadow: 
+                0 15px 35px -5px rgba(15, 23, 42, 0.15), 
+                0 5px 15px rgba(15, 23, 42, 0.08) !important;
+        }
+        [data-theme="light"] .insight-box { border-left: 4px solid var(--biru) !important; }
+
+        /* 6. PENGECUALIAN TOMBOL GOOGLE HUBUNGKAN */
+        #btnGoogleLink, body:not([data-theme="light"]) #btnGoogleLink {
+            background: rgba(66, 133, 244, 0.1) !important; border: 1px solid rgba(66, 133, 244, 0.4) !important; color: #4285F4 !important;
+            backdrop-filter: none !important; -webkit-backdrop-filter: none !important; box-shadow: none !important;
+        }
+       /* =========================================================
+           FIX: WARNA ANGKA SALDO DI LIGHT MODE (PREMIUM CONTRAST)
+           ========================================================= */
+        [data-theme="light"] .card-value.text-hijau { 
+            color: #059669 !important; /* Hijau Emerald pekat, bukan neon */
+        }
+        [data-theme="light"] .card-value.text-biru { 
+            color: #2563eb !important; /* Biru Royal gelap */
+        }
+        [data-theme="light"] .card-value.text-merah { 
+            color: #dc2626 !important; /* Merah Crimson pekat */
+        }
     </style>
 </head>
 <body>
@@ -913,7 +1009,7 @@
         // ==========================================
         // 1. SISTEM AUTO-UPDATE & SMART CACHE BUSTER
         // ==========================================
-        const APP_VERSION = '27.9'; // Hard update version
+        const APP_VERSION = '28.0'; // Hard update version
         
         function checkAppVersion() {
             const savedVersion = localStorage.getItem('finance_app_version');
