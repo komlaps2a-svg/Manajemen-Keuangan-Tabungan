@@ -3,15 +3,16 @@
 <head>
         <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-    <meta http-equiv="Cache-Control" content="no-cache, no-store, must-revalidate">
-    <meta http-equiv="Pragma" content="no-cache">
-    <meta http-equiv="Expires" content="0">
 
-    <link rel="manifest" href="manifest.json">
+        <link rel="manifest" href="manifest.json">
     <meta name="theme-color" content="#0a1128">
+    
+    <meta name="apple-mobile-web-app-capable" content="yes">
+    <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+    <meta name="apple-mobile-web-app-title" content="Finance Pay">
     <link rel="apple-touch-icon" href="icon-192x192.png">
     
-    <title>Enterprise Finance Dashboard v26.0 (Full Offline POS-Style)</title>
+    <title>Enterprise Finance Dashboard v28.5</title>
     <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800;900&display=swap" rel="stylesheet">
     
     <script defer src="https://cdn.jsdelivr.net/npm/chart.js"></script>
@@ -1026,7 +1027,7 @@
         // ==========================================
         // 1. SISTEM AUTO-UPDATE & SMART CACHE BUSTER
         // ==========================================
-        const APP_VERSION = '28.4'; // Hard update version
+        const APP_VERSION = '28.5'; // Selaraskan dengan CACHE_NAME di sw.js
         
         function checkAppVersion() {
             const savedVersion = localStorage.getItem('finance_app_version');
@@ -1129,20 +1130,33 @@
             } catch(e) { console.warn("Gagal simpan lokal:", e); }
         }
 
-        function loadLocalDB() {
+            function loadLocalDB() {
             const dbKey = getDBKey();
             let data = [];
             try {
                 const ciphertext = localStorage.getItem(dbKey);
                 if (ciphertext) {
-                    if (typeof CryptoJS !== 'undefined') {
-                        data = JSON.parse(CryptoJS.AES.decrypt(ciphertext, SECRET_KEY).toString(CryptoJS.enc.Utf8)); 
+                    // SISTEM PENGUNCI FATAL: Memastikan alat dekripsi eksis.
+                    // Jika CDN gagal dimuat saat offline, hentikan sistem untuk mencegah korupsi data.
+                    if (typeof CryptoJS === 'undefined') {
+                        document.body.innerHTML = `
+                            <div style="padding: 30px; text-align: center; margin-top: 50px; font-family: 'Inter', sans-serif;">
+                                <h2 style="color: #ef4444; margin-bottom: 10px; font-weight: 900;">Sistem Keamanan Terkunci</h2>
+                                <p style="color: #64748b; font-size: 14px; line-height: 1.6; font-weight: 600;">Mesin kriptografi gagal dimuat dari server karena tidak ada jaringan. Demi mencegah kehilangan data (saldo mereset ke 0), aplikasi membekukan diri. Silakan cari koneksi internet sesaat, lalu muat ulang halaman.</p>
+                            </div>
+                        `;
+                        throw new Error("CryptoJS offline. Eksekusi dihentikan mutlak.");
                     }
+                    data = JSON.parse(CryptoJS.AES.decrypt(ciphertext, SECRET_KEY).toString(CryptoJS.enc.Utf8)); 
                 } else {
                     const fallback = localStorage.getItem(dbKey + '_fallback');
                     if (fallback) data = JSON.parse(fallback);
                 }
-            } catch (e) { console.warn("Gagal load lokal:", e); }
+            } catch (e) { 
+                console.error("Kegagalan Database Lokal:", e); 
+                // Memotong aliran data agar aplikasi tidak menganggap database kosong
+                if(e.message.includes("CryptoJS offline")) return null;
+            }
             return Array.isArray(data) ? data : [];
         }
 
@@ -1169,10 +1183,15 @@
         // ==========================================
         // 4. BOOTING LOCAL-FIRST (GAYA MESIN KASIR)
         // ==========================================
-        function bootApp() {
+            function bootApp() {
             // 1. RENDER UI 100% INSTAN DARI MEMORI LOKAL TANPA MENUNGGU CLOUD
             if(typeof renderShortcuts === 'function') renderShortcuts(); 
-            db = loadLocalDB(); 
+            
+            const loadedData = loadLocalDB();
+            // Kunci Eksekusi: Jika dekripsi dibatalkan secara paksa (mengembalikan null), matikan seluruh peluncuran UI.
+            if (loadedData === null) return; 
+            
+            db = loadedData; 
             initAppHeader();
             if(typeof updateUI === 'function') updateUI('');
 
@@ -1546,23 +1565,6 @@
                         processPendingSync();
                     }
                 } 
-            }
-        });
-        
-        window.addEventListener('offline', () => { 
-            const netStatus = document.getElementById('networkStatus');
-            if(netStatus) { 
-                netStatus.innerText = pendingSync.length > 0 ? "Offline (Menunggu Sync)" : (APP_MODE === 'CLOUD' ? "Offline Mode (Cloud)" : "Offline Mode (Guest)"); 
-                netStatus.className = pendingSync.length > 0 ? "status-sync sync-pending" : "status-sync sync-offline"; 
-            }
-            showToast("Koneksi terputus. Mode Z-Offline Aktif.", "error");
-            if(typeof updateUI === 'function') updateUI(document.getElementById('searchTxInput') ? document.getElementById('searchTxInput').value : '');
-        });
-
-        document.addEventListener("visibilitychange", () => {
-            if (document.visibilityState === 'visible') { 
-                checkAppVersion(); // PAKSA CEK UPDATE TIAP BUKA APP DARI BACKGROUND
-                if (navigator.onLine && pendingSync.length > 0) { processPendingSync(); } 
             }
         });
 
@@ -2487,30 +2489,47 @@
             }, 15000);
         });
 
-        // REGISTRASI SERVICE WORKER (GAYA KASIR)
+     // REGISTRASI SERVICE WORKER (LEVEL ENTERPRISE TAHAN BANTING)
         if ('serviceWorker' in navigator) {
-            window.addEventListener('load', () => {
-                navigator.serviceWorker.register('./sw.js')
-                .then(reg => {
+            window.addEventListener('load', async () => {
+                // 1. Kunci Penyimpanan Mutlak: Cegah OS menghapus data aplikasi saat jarang dibuka
+                if (navigator.storage && navigator.storage.persist) {
+                    const isPersisted = await navigator.storage.persist();
+                    console.log(`Penyimpanan Permanen: ${isPersisted ? "AKTIF" : "TERBLOKIR"}`);
+                }
+
+                navigator.serviceWorker.register('./sw.js').then(reg => {
                     console.log('Service Worker terdaftar!', reg.scope);
-                    reg.onupdatefound = () => {
-                        const installingWorker = reg.installing;
-                        installingWorker.onstatechange = () => {
-                            if (installingWorker.state === 'installed' && navigator.serviceWorker.controller) {
-                                showToast("Update sistem terbaru diterapkan! Memuat ulang...", "syncing");
-                                setTimeout(() => window.location.reload(), 1500);
+                    
+                    // 2. Deteksi pembaruan versi secara real-time dari server
+                    reg.addEventListener('updatefound', () => {
+                        const newWorker = reg.installing;
+                        newWorker.addEventListener('statechange', () => {
+                            // Jika ada file sw.js baru dan siap mengambil alih
+                            if (newWorker.state === 'installed' && navigator.serviceWorker.controller) {
+                                // Blokir layar dengan UI Update bawaan Anda, bukan sekadar toast
+                                const updateScreen = document.getElementById('updateScreen');
+                                if (updateScreen) {
+                                    updateScreen.style.display = 'flex';
+                                    const updateText = updateScreen.querySelector('p');
+                                    if(updateText) updateText.innerText = "MENGUNDUH PEMBARUAN SISTEM...";
+                                }
+                                
+                                // Paksa muat ulang keras (hard reload) untuk membersihkan cache basi
+                                setTimeout(() => window.location.reload(true), 1500);
                             }
-                        };
-                    };
-                })
-                .catch(err => console.log('Service Worker Gagal!', err));
+                        });
+                    });
+                }).catch(err => console.error('Service Worker Gagal!', err));
             });
             
-            let refreshing;
+            // 3. Tangani kasus transisi asinkron saat controller berubah
+            let refreshing = false;
             navigator.serviceWorker.addEventListener('controllerchange', () => {
-                if (refreshing) return;
-                refreshing = true;
-                window.location.reload();
+                if (!refreshing) {
+                    refreshing = true;
+                    window.location.reload(true);
+                }
             });
         }
 
