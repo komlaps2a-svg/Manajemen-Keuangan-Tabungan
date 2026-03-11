@@ -1,11 +1,16 @@
-const CACHE_NAME = 'finance-Pay-v28.4'; // Nama cache di-update biar mesin langsung ngereset
+const CACHE_NAME = 'finance-Pay-v28.5';
 
-// 1. Masukkan SEMUA link luar (CDN) ke sini biar langsung di-download saat pertama buka web
-const urlsToCache = [
+// 1A. FILE INTI (HARGA MATI): Jika 1 saja gagal, Service Worker Batal Instal!
+const coreUrls = [
   './',
   './index.html',
   './manifest.json',
   './icon-192x192.png',
+  './icon-512x512.png' // Wajib untuk Splash Screen PWA di HP
+];
+
+// 1B. FILE EKSTERNAL (TOLERANSI): Boleh gagal saat instalasi, akan disusul nanti.
+const cdnUrls = [
   'https://cdn.jsdelivr.net/npm/chart.js',
   'https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2',
   'https://cdnjs.cloudflare.com/ajax/libs/crypto-js/4.1.1/crypto-js.min.js',
@@ -13,18 +18,26 @@ const urlsToCache = [
   'https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800;900&display=swap'
 ];
 
-// Tahap Install: Simpan semua file dan CDN ke Cache HP
+// Tahap Install: Pemisahan Logika Penyimpanan
 self.addEventListener('install', event => {
   self.skipWaiting(); 
   event.waitUntil(
-    caches.open(CACHE_NAME)
-      .then(cache => {
-        console.log('Menyimpan inti aplikasi & CDN ke Cache...');
-        // Pakai trik ini supaya kalau ada 1 CDN lemot, proses cache yang lain gak batal
-        return Promise.allSettled(
-          urlsToCache.map(url => cache.add(url).catch(err => console.log('Gagal cache:', url, err)))
-        );
-      })
+    caches.open(CACHE_NAME).then(cache => {
+      console.log('Menyimpan inti aplikasi ke Cache...');
+      
+      // Gunakan cache.addAll (Promise.all) agar instalasi GAGAL jika file HTML tidak terunduh
+      const cacheCore = cache.addAll(coreUrls);
+      
+      // Gunakan Promise.allSettled HANYA untuk CDN. Gagal? Abaikan.
+      const cacheCdns = Promise.allSettled(
+        cdnUrls.map(url => fetch(url, { mode: 'no-cors' }) // Cegah blokir CORS saat pre-cache
+          .then(res => cache.put(url, res))
+          .catch(err => console.warn('CDN ditunda:', url))
+        )
+      );
+
+      return Promise.all([cacheCore, cacheCdns]);
+    })
   );
 });
 
@@ -44,30 +57,30 @@ self.addEventListener('activate', event => {
   );
 });
 
-// Tahap Fetch: Network First, Fallback to Cache
+// Tahap Fetch: Network First, Fallback to Cache (Tahan Banting)
 self.addEventListener('fetch', event => {
-  // Abaikan request aneh dari browser extension, cuma fokus ke http/https
   if (!event.request.url.startsWith('http')) return;
 
   event.respondWith(
     fetch(event.request)
       .then(response => {
-        // FIX: Syarat 'response.type !== basic' DIGUGURKAN. 
-        // Sekarang CDN dari luar (CORS) bisa masuk ke cache dinamis.
-        if (!response || response.status !== 200) {
+        // Simpan ke cache jika server mengembalikan respons sukses absolut
+        if (response && response.status === 200) {
+          const responseToCache = response.clone();
+          caches.open(CACHE_NAME).then(cache => cache.put(event.request, responseToCache));
           return response;
         }
-        
-        const responseToCache = response.clone();
-        caches.open(CACHE_NAME)
-          .then(cache => {
-            cache.put(event.request, responseToCache);
-          });
-        return response;
+        // Jika jaringan terhubung tapi timeout atau server error (504/500), 
+        // paksa mesin turun ke Cache Lokal alih-alih menampilkan layar rusak.
+        // Penambahan 'ignoreSearch: true' adalah harga mati untuk PWA.
+        return caches.match(event.request, { ignoreSearch: true }).then(cached => {
+            return cached || response;
+        });
       })
       .catch(() => {
-        // Mode pesawat / Sinyal putus? Mesin langsung nyomot dari Cache lokal!
-        return caches.match(event.request);
+        // Mode pesawat murni. Wajib menggunakan 'ignoreSearch: true' untuk menghindari 
+        // kegagalan pencocokan URL akibat parameter ekstra dari sistem operasi.
+        return caches.match(event.request, { ignoreSearch: true });
       })
   );
 });
