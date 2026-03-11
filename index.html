@@ -12,7 +12,7 @@
     <meta name="apple-mobile-web-app-title" content="Finance Pay">
     <link rel="apple-touch-icon" href="icon-192x192.png">
     
-    <title>Enterprise Finance Dashboard v28.6</title>
+    <title>Enterprise Finance Dashboard v28.7</title>
     <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800;900&display=swap" rel="stylesheet">
     
     <script defer src="https://cdn.jsdelivr.net/npm/chart.js"></script>
@@ -68,14 +68,18 @@
             cursor: pointer; transition: transform 0.2s; position: relative;
         }
         .profile-header:active { transform: scale(0.98); }
-        /* KUNCI UI: Beri pagar margin/padding di sebelah kanan agar tidak menabrak badge Absolute */
-        .profile-info { display: flex; align-items: center; gap: 15px; width: 100%; padding-right: 80px; overflow: hidden; box-sizing: border-box; }
+        /* KUNCI UI: Cukup gunakan padding-right 95px sebagai batas aman absolut untuk Lencana */
+        .profile-info { display: flex; align-items: center; gap: 12px; width: 100%; padding-right: 95px; box-sizing: border-box; }
         .profile-pic-container { width: 50px; height: 50px; border-radius: 50%; border: 2px solid var(--biru); overflow: hidden; flex-shrink: 0; background: var(--hitam); position: relative; }
         .profile-pic { width: 100%; height: 100%; object-fit: cover; }
+        
+        /* Kembalikan ke flex: 1 agar mengisi ruang secara alami tanpa paksaan max-width */
+        .profile-name-wrap { display: flex; flex-direction: column; min-width: 0; flex: 1; }
+        
         .profile-title { font-size: 11px; color: var(--text-muted); text-transform: uppercase; font-weight: 800; letter-spacing: 1px; display: block;}
         
-        /* Pertahanan Terakhir: Paksa potong menjadi "..." jika teks tetap melanggar batas */
-        .profile-name { font-size: clamp(15px, 5vw, 18px); font-weight: 900; margin: 0; display: block; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; width: 100%; }
+        /* Teks akan otomatis memotong dirinya (ellipsis) HANYA jika menyentuh batas padding 95px di atas */
+        .profile-name { font-size: clamp(16px, 5vw, 20px); font-weight: 900; margin: 0; display: block; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; width: 100%; }
 
         /* FINANCIAL HEALTH INDICATOR */
         .health-badge { position: absolute; right: 20px; top: 50%; transform: translateY(-50%); padding: 6px 10px; border-radius: 8px; font-size: 10px; font-weight: 900; text-transform: uppercase; letter-spacing: 0.5px; border: 1px solid; display: flex; flex-direction: column; align-items: center; background: var(--hitam-card); transition: all 0.3s;}
@@ -127,15 +131,28 @@
         .custom-option:last-child { border-bottom: none; }
         .custom-option:hover { background: var(--biru); color: white; }
         
+        /* ANIMASI ROLL-DOWN KHUSUS PROFIL */
+        .profile-roll-down {
+            transform-origin: top left !important;
+            transform: scaleY(0) !important;
+            opacity: 0;
+            transition: transform 0.3s cubic-bezier(0.175, 0.885, 0.32, 1.275), opacity 0.2s ease !important;
+        }
+        .profile-roll-down.open {
+            transform: scaleY(1) !important;
+            opacity: 1;
+        }
+        
         /* FILTER WAKTU & INSIGHT AI ROW */
-        .filter-insight-row { display: flex; gap: 10px; width: 100%; margin-bottom: 25px; align-items: stretch; height: 90px; }
-        .time-filter-wrapper { width: 95px; margin-bottom: 0; flex-shrink: 0; position: relative; height: 100%; }
+        .filter-insight-row { display: flex; gap: 10px; width: 100%; margin-bottom: 25px; align-items: stretch; min-height: 80px; }
+        .time-filter-wrapper { width: 95px; margin-bottom: 0; flex-shrink: 0; position: relative; height: auto; }
         .time-filter-wrapper .custom-select-trigger { padding: 0 8px; font-size: 10px; font-weight: 800; background: var(--hitam-card); height: 100%; text-align: left; }
         
         /* KOTAK INSIGHT AI */
-        .insight-box { background: var(--hitam-card) !important; border: 1px solid var(--border); border-left-width: 3px; border-left-style: solid; border-left-color: var(--biru); padding: 12px 15px; border-radius: 8px; font-weight: 600; color: var(--putih); display: flex; align-items: center; gap: 12px; flex: 1; overflow: hidden; height: 100%; box-sizing: border-box; }
+        .insight-box { background: var(--hitam-card) !important; border: 1px solid var(--border); border-left-width: 3px; border-left-style: solid; border-left-color: var(--biru); padding: 12px 15px; border-radius: 8px; font-weight: 600; color: var(--putih); display: flex; align-items: center; gap: 12px; flex: 1; height: auto; box-sizing: border-box; }
         .insight-box svg { flex-shrink: 0; color: var(--biru); width: 18px; height: 18px; }
-        .insight-box span { font-size: 11.5px; line-height: 1.5; display: -webkit-box; -webkit-line-clamp: 4; -webkit-box-orient: vertical; overflow: hidden; text-overflow: ellipsis; text-align: left; width: 100%; word-wrap: break-word; margin: 0; padding: 0; }
+        /* Teks bebas, tidak dipotong, tidak pakai ... */
+        .insight-box span { font-size: clamp(11px, 3.5vw, 13px); line-height: 1.5; text-align: left; width: 100%; word-wrap: break-word; margin: 0; padding: 0; }
         .fade-transition { transition: opacity 0.4s ease-in-out; opacity: 1; }
         .fade-out { opacity: 0; }
 
@@ -279,7 +296,18 @@
         .prof-detail-val { font-size: 14px; font-weight: 700; color: var(--putih); margin: 0;}
 
         /* CSS Status Sinkronisasi */
-        .status-sync { font-size: 11px; padding: 4px 8px; border-radius: 4px; display: inline-block; margin-top: 5px; font-weight: 700; }
+        /* KUNCI MUTLAK: Gunakan clamp untuk teks, dan white-space nowrap agar tidak panik membelah diri */
+        .status-sync { 
+            font-size: clamp(8px, 2.8vw, 11px); 
+            padding: 4px 8px; 
+            border-radius: 4px; 
+            display: inline-block; 
+            margin-top: 5px; 
+            font-weight: 700; 
+            align-self: flex-start; 
+            text-align: center; 
+            white-space: nowrap !important; 
+        }
         .sync-online { background: rgba(16, 185, 129, 0.2); color: var(--hijau); }
         .sync-offline { background: rgba(245, 158, 11, 0.2); color: var(--kuning); }
         .sync-pending { background: rgba(59, 130, 246, 0.2); color: var(--biru); }
@@ -752,6 +780,23 @@
                 </button>
             </div>
             
+            <div style="display: flex; justify-content: flex-start; margin-bottom: 15px;">
+                <div class="custom-select-wrapper" style="width: auto; margin-bottom: 0; z-index: 10;">
+                    <div class="custom-select-trigger" onclick="toggleCustomSelect('profileTimeFilterOptions')" style="padding: 8px 12px; font-size: 11px; height: auto; border-radius: 8px; gap: 8px; background: var(--hitam); border-color: var(--border);">
+                        <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/></svg>
+                        <span id="dispProfileTimeFilter">Semua Waktu</span>
+                        <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="m6 9 6 6 6-6"/></svg>
+                    </div>
+                    <div class="custom-options profile-roll-down" id="profileTimeFilterOptions" style="width: max-content; min-width: 100%; left: 0; right: auto; top: calc(100% + 5px);">
+                        <div class="custom-option" onclick="applyProfileTimeFilter(0, 'Semua Waktu')">Semua Waktu</div>
+                        <div class="custom-option" onclick="applyProfileTimeFilter(1, 'Hari Ini')">Hari Ini</div>
+                        <div class="custom-option" onclick="applyProfileTimeFilter(3, '3 Hari Terakhir')">3 Hari Terakhir</div>
+                        <div class="custom-option" onclick="applyProfileTimeFilter(7, '7 Hari Terakhir')">7 Hari Terakhir</div>
+                        <div class="custom-option" onclick="applyProfileTimeFilter(30, '30 Hari Terakhir')">30 Hari Terakhir</div>
+                    </div>
+                </div>
+            </div>
+
             <div class="prof-detail-grid">
                 <div class="prof-detail-box"><span class="prof-detail-label">Gender</span><p class="prof-detail-val" id="viewGender">-</p></div>
                 <div class="prof-detail-box"><span class="prof-detail-label">Tgl Lahir</span><p class="prof-detail-val" id="viewBirth">-</p></div>
@@ -1033,7 +1078,7 @@
         // ==========================================
         // 1. SISTEM AUTO-UPDATE & SMART CACHE BUSTER
         // ==========================================
-        const APP_VERSION = '28.6'; // Selaraskan dengan CACHE_NAME di sw.js
+        const APP_VERSION = '28.7'; // Selaraskan dengan CACHE_NAME di sw.js
         
         function checkAppVersion() {
             const savedVersion = localStorage.getItem('finance_app_version');
@@ -1582,9 +1627,9 @@
         function formatRpPendek(num) { let str = new Intl.NumberFormat('id-ID', { style: 'currency', currency: 'IDR', minimumFractionDigits: 0 }).format(num); return str.replace(/\.000$/, '...'); }
         function formatDetailDate(iso) { if(!iso) return '-'; const d = new Date(iso); return `${String(d.getDate()).padStart(2,'0')}/${String(d.getMonth()+1).padStart(2,'0')}/${d.getFullYear()} - ${String(d.getHours()).padStart(2,'0')}:${String(d.getMinutes()).padStart(2,'0')}:${String(d.getSeconds()).padStart(2,'0')}`; }
         
-        // MESIN SMART INITIAL: Potong kata terakhir jadi inisial jika nama > 15 karakter
+        // MESIN SMART INITIAL: Pemotong Inisial Otomatis
         function formatSmartName(name) {
-            if (!name || name.length <= 15) return name; 
+            if (!name) return name; 
             let words = name.trim().split(/\s+/);
             if (words.length > 1) {
                 let lastWord = words.pop(); 
@@ -1592,31 +1637,44 @@
             }
             return name; 
         }
-        
+
         function showToast(msg, type = 'success') { 
             const box = document.getElementById('toastBox'); 
             if(!box) return; 
             const t = document.createElement('div'); 
             t.className = `toast ${type}`; 
-            t.innerHTML = msg; // Menggunakan innerHTML agar bisa merender tag <b> atau link jika diperlukan
+            t.innerHTML = msg; 
             box.appendChild(t); 
             setTimeout(() => t.classList.add('show'), 10); 
             setTimeout(() => { t.classList.remove('show'); setTimeout(() => t.remove(), 400); }, 3500); 
         }
 
         function closeModal(id) { const el = document.getElementById(id); if(el) el.classList.remove('active'); document.querySelectorAll('.custom-options.open').forEach(e => e.classList.remove('open')); }
+        
         function properTitleCase(str) { if(!str) return ""; return str.toLowerCase().replace(/\b\w/g, char => char.toUpperCase()); }
 
         let confirmAction = null;
         function openCustomConfirm(title, desc, action) { document.getElementById('confirmTitle').innerText = title; document.getElementById('confirmDesc').innerHTML = desc; confirmAction = action; document.getElementById('confirmModal').classList.add('active'); }
+        
         document.getElementById('btnConfirmYes').addEventListener('click', () => { if(confirmAction) confirmAction(); closeModal('confirmModal'); });
 
         // ==========================================
         // 8. PROFIL, KEAMANAN PIN & GOOGLE AUTH
         // ==========================================
         function initAppHeader() { 
-            // Lewatkan nama melalui mesin pemotong inisial sebelum dicetak
-            document.getElementById('headName').innerText = formatSmartName(profile.name); 
+            const nameEl = document.getElementById('headName');
+            const wrapEl = document.querySelector('.profile-name-wrap');
+            
+            // 1. Cetak nama asli 100% sementara untuk diukur
+            nameEl.innerText = profile.name; 
+
+            setTimeout(() => {
+                // 2. Jika lebar pembungkus teks mepet ke batas amannya, potong!
+                if (nameEl.scrollWidth > wrapEl.clientWidth) {
+                    nameEl.innerText = formatSmartName(profile.name);
+                }
+            }, 0);
+
             document.getElementById('headGender').innerText = profile.gender; 
             document.getElementById('headProfileImg').src = profile.photo; 
         }
@@ -1680,35 +1738,56 @@
             if (error) showToast("Gagal Login", "error"); 
         });
 
-        function openProfileView() { 
-    // Siapkan wadah untuk hitungan masing-masing dompet
-    let inHarian = 0, outHarian = 0, inTabungan = 0, outTabungan = 0; 
-    
-    // Pisahkan hitungan berdasarkan dompet (wallet)
-    db.forEach(t => { 
-        if (t.wallet === 'harian') {
-            if (t.type === 'masuk') inHarian += t.amount; else outHarian += t.amount; 
-        } else if (t.wallet === 'tabungan') {
-            if (t.type === 'masuk') inTabungan += t.amount; else outTabungan += t.amount; 
+        // --- MESIN FILTER WAKTU PROFIL ---
+        let currentProfileTimeFilter = 0; // 0 = Semua waktu
+
+        function applyProfileTimeFilter(days, labelText) {
+            currentProfileTimeFilter = days;
+            document.getElementById('dispProfileTimeFilter').innerText = labelText;
+            closeModal(''); // Tutup pop-up dropdownnya
+            renderProfileStats(); // Hitung ulang angka saldo
         }
-    }); 
-    
-    document.getElementById('viewProfileImg').src = profile.photo; 
-    document.getElementById('viewProfileName').innerText = profile.name; 
-    document.getElementById('viewJoinDate').innerText = "Bergabung: " + formatDetailDate(profile.joinDate); 
-    document.getElementById('viewGender').innerText = profile.gender || '-'; 
-    document.getElementById('viewBirth').innerText = profile.birthDate || '-'; 
-    
-    // Tampilkan data Harian
-    document.getElementById('viewTotalMasuk').innerText = formatRp(inHarian); 
-    document.getElementById('viewTotalKeluar').innerText = formatRp(outHarian); 
-    
-    // Tampilkan data Tabungan
-    const viewMasukTab = document.getElementById('viewTotalMasukTabungan');
-    if (viewMasukTab) viewMasukTab.innerText = formatRp(inTabungan);
-    
-    const viewKeluarTab = document.getElementById('viewTotalKeluarTabungan');
-    if (viewKeluarTab) viewKeluarTab.innerText = formatRp(outTabungan);
+
+        function renderProfileStats() {
+            let inHarian = 0, outHarian = 0, inTabungan = 0, outTabungan = 0; 
+            const today = new Date(); today.setHours(0,0,0,0);
+
+            db.forEach(t => { 
+                // Radar Waktu: Abaikan data jika lebih tua dari filter yang dipilih
+                if(currentProfileTimeFilter !== 0) { 
+                    const d = new Date(t.date); d.setHours(0,0,0,0); 
+                    if(Math.floor(Math.abs(today - d) / 86400000) > currentProfileTimeFilter) return; 
+                }
+
+                if (t.wallet === 'harian') {
+                    if (t.type === 'masuk') inHarian += t.amount; else outHarian += t.amount; 
+                } else if (t.wallet === 'tabungan') {
+                    if (t.type === 'masuk') inTabungan += t.amount; else outTabungan += t.amount; 
+                }
+            }); 
+            
+            document.getElementById('viewTotalMasuk').innerText = formatRp(inHarian); 
+            document.getElementById('viewTotalKeluar').innerText = formatRp(outHarian); 
+            const viewMasukTab = document.getElementById('viewTotalMasukTabungan');
+            if (viewMasukTab) viewMasukTab.innerText = formatRp(inTabungan);
+            const viewKeluarTab = document.getElementById('viewTotalKeluarTabungan');
+            if (viewKeluarTab) viewKeluarTab.innerText = formatRp(outTabungan);
+        }
+
+        function openProfileView() { 
+            // Setiap kali Profil dibuka, reset filter kembali ke Semua Waktu
+            currentProfileTimeFilter = 0;
+            const dispFilter = document.getElementById('dispProfileTimeFilter');
+            if(dispFilter) dispFilter.innerText = 'Semua Waktu';
+            
+            // Render angka
+            renderProfileStats();
+            
+            document.getElementById('viewProfileImg').src = profile.photo; 
+            document.getElementById('viewProfileName').innerText = profile.name; 
+            document.getElementById('viewJoinDate').innerText = "Bergabung: " + formatDetailDate(profile.joinDate); 
+            document.getElementById('viewGender').innerText = profile.gender || '-'; 
+            document.getElementById('viewBirth').innerText = profile.birthDate || '-'; 
             
             const stat = document.getElementById('viewGoogleStatus'); 
             const btnText = document.getElementById('textGoogleLink'); 
@@ -2262,20 +2341,45 @@
             startAICarousel(textEl); 
         }
         
-        function startAICarousel(textEl) { 
+           function startAICarousel(textEl) { 
             if (aiCarouselInterval) clearInterval(aiCarouselInterval); 
-            aiCurrentMsgIdx = 0; textEl.innerText = aiMessages[0]; textEl.classList.remove('fade-out'); 
+            aiCurrentMsgIdx = 0; 
+            
+            // --- MESIN RADAR SPASIAL KOTAK AI (ANTI-KEDUT) ---
+            // 1. Buka gembok dimensi sementara
+            textEl.style.minHeight = '0px'; 
+            textEl.style.display = 'block'; 
+            
+            // 2. Mesin melakukan simulasi (render gaib) semua pesan untuk mengukur siapa yang paling tinggi
+            let maxH = 0; 
+            aiMessages.forEach(msg => { 
+                textEl.innerText = msg; 
+                // Mengukur berapa tinggi piksel yang dimakan oleh teks ini di layar pengguna saat ini
+                if (textEl.offsetHeight > maxH) { maxH = textEl.offsetHeight; } 
+            }); 
+            
+            // 3. Kunci mati ruang teks berdasarkan ukuran tertinggi yang ditemukan (Toleransi presisi)
+            textEl.style.minHeight = maxH + 'px'; 
+            
+            // 4. Bikin teks yang lebih pendek tetap berada di tengah (Vertical Center) secara elegan
+            textEl.style.display = 'flex'; 
+            textEl.style.alignItems = 'center'; 
+            
+            // 5. Kembalikan ke teks pertama dan mulai putaran
+            textEl.innerText = aiMessages[0]; 
+            textEl.classList.remove('fade-out'); 
+            
             if (aiMessages.length > 1) { 
                 aiCarouselInterval = setInterval(() => { 
                     textEl.classList.add('fade-out'); 
                     setTimeout(() => { 
                         aiCurrentMsgIdx = (aiCurrentMsgIdx + 1) % aiMessages.length; 
-                        textEl.innerText = aiMessages[aiCurrentMsgIdx]; textEl.classList.remove('fade-out'); 
+                        textEl.innerText = aiMessages[aiCurrentMsgIdx]; 
+                        textEl.classList.remove('fade-out'); 
                     }, 400); 
                 }, 10000); 
             } 
         }
-
             function openReceipt(txId) { 
             const strTxId = String(txId); const tx = db.find(t => String(t.id) === strTxId || String(t.date) === strTxId); if(!tx) return; 
             const rDate = formatDetailDate(tx.date); const rId = "TRX-" + new Date(tx.date).getTime().toString().slice(-8); 
