@@ -12,7 +12,7 @@
     <meta name="apple-mobile-web-app-title" content="Finance Pay">
     <link rel="apple-touch-icon" href="icon-192x192.png">
     
-    <title>Enterprise Finance Dashboard v28.7</title>
+    <title>Enterprise Finance Dashboard v28.8</title>
     <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800;900&display=swap" rel="stylesheet">
     
     <script defer src="https://cdn.jsdelivr.net/npm/chart.js"></script>
@@ -144,15 +144,16 @@
         }
         
         /* FILTER WAKTU & INSIGHT AI ROW */
-        .filter-insight-row { display: flex; gap: 10px; width: 100%; margin-bottom: 25px; align-items: stretch; min-height: 80px; }
-        .time-filter-wrapper { width: 95px; margin-bottom: 0; flex-shrink: 0; position: relative; height: auto; }
+        /* KUNCI MUTLAK: Tinggi dikunci dengan clamp agar konsisten di semua dompet & stabil di semua DPI */
+        .filter-insight-row { display: flex; gap: 10px; width: 100%; margin-bottom: 25px; align-items: stretch; height: clamp(90px, 22vw, 115px); }
+        .time-filter-wrapper { width: 95px; margin-bottom: 0; flex-shrink: 0; position: relative; height: 100%; }
         .time-filter-wrapper .custom-select-trigger { padding: 0 8px; font-size: 10px; font-weight: 800; background: var(--hitam-card); height: 100%; text-align: left; }
         
         /* KOTAK INSIGHT AI */
-        .insight-box { background: var(--hitam-card) !important; border: 1px solid var(--border); border-left-width: 3px; border-left-style: solid; border-left-color: var(--biru); padding: 12px 15px; border-radius: 8px; font-weight: 600; color: var(--putih); display: flex; align-items: center; gap: 12px; flex: 1; height: auto; box-sizing: border-box; }
+        .insight-box { background: var(--hitam-card) !important; border: 1px solid var(--border); border-left-width: 3px; border-left-style: solid; border-left-color: var(--biru); padding: 12px 15px; border-radius: 8px; font-weight: 600; color: var(--putih); display: flex; align-items: center; gap: 12px; flex: 1; overflow-y: auto; height: 100%; box-sizing: border-box; }
         .insight-box svg { flex-shrink: 0; color: var(--biru); width: 18px; height: 18px; }
-        /* Teks bebas, tidak dipotong, tidak pakai ... */
-        .insight-box span { font-size: clamp(11px, 3.5vw, 13px); line-height: 1.5; text-align: left; width: 100%; word-wrap: break-word; margin: 0; padding: 0; }
+        /* Teks tetap bebas. Jika terlalu panjang, ia bisa di-scroll tipis di dalam kotak. */
+        .insight-box span { font-size: clamp(11px, 3.5vw, 13px); line-height: 1.4; text-align: left; width: 100%; word-wrap: break-word; margin: 0; padding: 0; }
         .fade-transition { transition: opacity 0.4s ease-in-out; opacity: 1; }
         .fade-out { opacity: 0; }
 
@@ -290,10 +291,14 @@
         .toast.error { border-color: var(--merah); } .toast.success { border-color: var(--hijau); }
         .toast.syncing { border-color: var(--biru); background: rgba(59, 130, 246, 0.9); }
 
-        .prof-detail-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 15px; margin-bottom: 25px; text-align: left;}
-        .prof-detail-box { background: var(--hitam); border: 1px solid var(--border); padding: 12px 15px; border-radius: 12px; }
-        .prof-detail-label { font-size: 10px; color: var(--text-muted); text-transform: uppercase; font-weight: 800; display: block; margin-bottom: 3px;}
-        .prof-detail-val { font-size: 14px; font-weight: 700; color: var(--putih); margin: 0;}
+       /* KUNCI UI: minmax(0, 1fr) adalah HUKUM MUTLAK agar Grid TIDAK PERNAH mengalah pada teks panjang */
+        .prof-detail-grid { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 12px; margin-bottom: 25px; text-align: left;}
+        /* Kurangi padding internal dari 15px ke 10px agar teks punya ruang bernapas lebih luas */
+        .prof-detail-box { background: var(--hitam); border: 1px solid var(--border); padding: 12px 10px; border-radius: 12px; overflow: hidden; display: flex; flex-direction: column; justify-content: center; }
+        /* CABUT PEMOTONG TEKS DARI LABEL. Label dilarang keras dipotong (...) */
+        .prof-detail-label { font-size: 10px; color: var(--text-muted); text-transform: uppercase; font-weight: 800; display: block; margin-bottom: 3px; }
+        /* Value angka tetap dipotong jika angkanya mencapai triliunan */
+        .prof-detail-val { font-size: clamp(11px, 3.5vw, 14px); font-weight: 700; color: var(--putih); margin: 0; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 
         /* CSS Status Sinkronisasi */
         /* KUNCI MUTLAK: Gunakan clamp untuk teks, dan white-space nowrap agar tidak panik membelah diri */
@@ -805,12 +810,12 @@
                 <div class="prof-detail-box"><span class="prof-detail-label">Masuk Tabungan</span><p class="prof-detail-val text-hijau" id="viewTotalMasukTabungan">Rp 0</p></div>
                 <div class="prof-detail-box"><span class="prof-detail-label">Keluar Tabungan</span><p class="prof-detail-val text-merah" id="viewTotalKeluarTabungan">Rp 0</p></div>
                 
-                <div class="prof-detail-box" style="grid-column: span 2; display:flex; justify-content:space-between; align-items:center; border-color:#4285F4; gap: 10px;">
-                    <div style="text-align: left; flex: 1; min-width: 0;">
+                    <div class="prof-detail-box" style="grid-column: span 2; display:flex; flex-direction: row; justify-content:space-between; align-items:center; border-color:#4285F4; gap: 10px; padding: 15px;">
+                    <div style="text-align: left; flex: 1; min-width: 0; display: flex; flex-direction: column; justify-content: center;">
                         <span class="prof-detail-label">Status Akun</span>
-                        <p class="prof-detail-val" id="viewGoogleStatus" style="color:var(--text-muted); font-size: 13px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;">Tidak Terhubung</p>
+                        <p class="prof-detail-val" id="viewGoogleStatus" style="color:var(--text-muted); font-size: 13px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; margin: 0;">Tidak Terhubung</p>
                     </div>
-                    <button id="btnGoogleLink" class="btn-quick glow-biru" style="padding: 8px 12px; font-size:11px; border-color:#4285F4; color:#4285F4; flex-shrink: 0;" onclick="openGoogleAuthModal()">
+                    <button id="btnGoogleLink" class="btn-quick glow-biru" style="padding: 8px 12px; font-size:11px; border-color:#4285F4; color:#4285F4; flex-shrink: 0; width: auto; height: fit-content; display: flex; align-items: center;" onclick="openGoogleAuthModal()">
                         <svg width="14" height="14" viewBox="0 0 24 24" fill="currentColor"><path d="M12.24 10.285V14.4h6.806c-.275 1.765-2.056 5.174-6.806 5.174-4.095 0-7.439-3.389-7.439-7.574s3.345-7.574 7.439-7.574c2.33 0 3.891.989 4.785 1.849l3.254-3.138C18.189 1.186 15.479 0 12.24 0c-6.635 0-12 5.365-12 12s5.365 12 12 12c6.926 0 11.52-4.869 11.52-11.726 0-.788-.085-1.39-.189-1.989H12.24z"/></svg> 
                         <span id="textGoogleLink">Hubungkan</span>
                     </button>
@@ -1078,7 +1083,7 @@
         // ==========================================
         // 1. SISTEM AUTO-UPDATE & SMART CACHE BUSTER
         // ==========================================
-        const APP_VERSION = '28.7'; // Selaraskan dengan CACHE_NAME di sw.js
+        const APP_VERSION = '28.8'; // Selaraskan dengan CACHE_NAME di sw.js
         
         function checkAppVersion() {
             const savedVersion = localStorage.getItem('finance_app_version');
@@ -1627,17 +1632,20 @@
         function formatRpPendek(num) { let str = new Intl.NumberFormat('id-ID', { style: 'currency', currency: 'IDR', minimumFractionDigits: 0 }).format(num); return str.replace(/\.000$/, '...'); }
         function formatDetailDate(iso) { if(!iso) return '-'; const d = new Date(iso); return `${String(d.getDate()).padStart(2,'0')}/${String(d.getMonth()+1).padStart(2,'0')}/${d.getFullYear()} - ${String(d.getHours()).padStart(2,'0')}:${String(d.getMinutes()).padStart(2,'0')}:${String(d.getSeconds()).padStart(2,'0')}`; }
         
-        // MESIN SMART INITIAL: Pemotong Inisial Otomatis
+        // MESIN SMART INITIAL: Hukum Mutlak Berbasis Jumlah Huruf
         function formatSmartName(name) {
             if (!name) return name; 
-            let words = name.trim().split(/\s+/);
-            if (words.length > 1) {
-                let lastWord = words.pop(); 
-                return words.join(' ') + ' ' + lastWord.charAt(0).toUpperCase() + '.';
+            if (name.length > 12) {
+                let words = name.trim().split(/\s+/);
+                if (words.length > 1) {
+                    let lastWord = words.pop(); 
+                    return words.join(' ') + ' ' + lastWord.charAt(0).toUpperCase() + '.';
+                }
             }
-            return name; 
+            return name;
         }
 
+        // VVV FUNGSI FATAL YANG ANDA HAPUS VVV
         function showToast(msg, type = 'success') { 
             const box = document.getElementById('toastBox'); 
             if(!box) return; 
@@ -1650,31 +1658,19 @@
         }
 
         function closeModal(id) { const el = document.getElementById(id); if(el) el.classList.remove('active'); document.querySelectorAll('.custom-options.open').forEach(e => e.classList.remove('open')); }
-        
         function properTitleCase(str) { if(!str) return ""; return str.toLowerCase().replace(/\b\w/g, char => char.toUpperCase()); }
 
         let confirmAction = null;
         function openCustomConfirm(title, desc, action) { document.getElementById('confirmTitle').innerText = title; document.getElementById('confirmDesc').innerHTML = desc; confirmAction = action; document.getElementById('confirmModal').classList.add('active'); }
-        
         document.getElementById('btnConfirmYes').addEventListener('click', () => { if(confirmAction) confirmAction(); closeModal('confirmModal'); });
+        // ^^^ JANGAN PERNAH HAPUS BAGIAN INI KECUALI ANDA INGIN APLIKASI MATI ^^^
 
         // ==========================================
         // 8. PROFIL, KEAMANAN PIN & GOOGLE AUTH
         // ==========================================
         function initAppHeader() { 
-            const nameEl = document.getElementById('headName');
-            const wrapEl = document.querySelector('.profile-name-wrap');
-            
-            // 1. Cetak nama asli 100% sementara untuk diukur
-            nameEl.innerText = profile.name; 
-
-            setTimeout(() => {
-                // 2. Jika lebar pembungkus teks mepet ke batas amannya, potong!
-                if (nameEl.scrollWidth > wrapEl.clientWidth) {
-                    nameEl.innerText = formatSmartName(profile.name);
-                }
-            }, 0);
-
+            // Eksekusi langsung tanpa mikir panjang. Mesin formatSmartName yang akan memfilter.
+            document.getElementById('headName').innerText = formatSmartName(profile.name); 
             document.getElementById('headGender').innerText = profile.gender; 
             document.getElementById('headProfileImg').src = profile.photo; 
         }
@@ -2345,27 +2341,11 @@
             if (aiCarouselInterval) clearInterval(aiCarouselInterval); 
             aiCurrentMsgIdx = 0; 
             
-            // --- MESIN RADAR SPASIAL KOTAK AI (ANTI-KEDUT) ---
-            // 1. Buka gembok dimensi sementara
-            textEl.style.minHeight = '0px'; 
-            textEl.style.display = 'block'; 
+            // Bersihkan sisa manipulasi JS dari eksekusi lama. Biarkan CSS Clamp yang mengontrol penuh!
+            textEl.style.minHeight = ''; 
+            textEl.style.display = ''; 
+            textEl.style.alignItems = ''; 
             
-            // 2. Mesin melakukan simulasi (render gaib) semua pesan untuk mengukur siapa yang paling tinggi
-            let maxH = 0; 
-            aiMessages.forEach(msg => { 
-                textEl.innerText = msg; 
-                // Mengukur berapa tinggi piksel yang dimakan oleh teks ini di layar pengguna saat ini
-                if (textEl.offsetHeight > maxH) { maxH = textEl.offsetHeight; } 
-            }); 
-            
-            // 3. Kunci mati ruang teks berdasarkan ukuran tertinggi yang ditemukan (Toleransi presisi)
-            textEl.style.minHeight = maxH + 'px'; 
-            
-            // 4. Bikin teks yang lebih pendek tetap berada di tengah (Vertical Center) secara elegan
-            textEl.style.display = 'flex'; 
-            textEl.style.alignItems = 'center'; 
-            
-            // 5. Kembalikan ke teks pertama dan mulai putaran
             textEl.innerText = aiMessages[0]; 
             textEl.classList.remove('fade-out'); 
             
