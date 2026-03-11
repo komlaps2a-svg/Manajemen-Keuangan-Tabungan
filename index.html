@@ -12,7 +12,7 @@
     <meta name="apple-mobile-web-app-title" content="Finance Pay">
     <link rel="apple-touch-icon" href="icon-192x192.png">
     
-    <title>Enterprise Finance Dashboard v28.5</title>
+    <title>Enterprise Finance Dashboard v28.6</title>
     <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800;900&display=swap" rel="stylesheet">
     
     <script defer src="https://cdn.jsdelivr.net/npm/chart.js"></script>
@@ -31,11 +31,14 @@
             --text-muted: #64748b;
         }
 
-        body {
+            body {
             font-family: 'Inter', sans-serif; background-color: var(--navy); color: var(--putih);
             margin: 0; padding: 20px; line-height: 1.5; touch-action: manipulation; overflow-x: hidden;
             box-sizing: border-box;
             overscroll-behavior-y: none;
+            /* KUNCI ABSOLUT: Blokir campur tangan sistem HP yang membesarkan font otomatis */
+            -webkit-text-size-adjust: 100%;
+            text-size-adjust: 100%;
         }
 
         *, *::before, *::after { box-sizing: inherit; }
@@ -65,11 +68,14 @@
             cursor: pointer; transition: transform 0.2s; position: relative;
         }
         .profile-header:active { transform: scale(0.98); }
-        .profile-info { display: flex; align-items: center; gap: 15px; width: 100%; }
+        /* KUNCI UI: Beri pagar margin/padding di sebelah kanan agar tidak menabrak badge Absolute */
+        .profile-info { display: flex; align-items: center; gap: 15px; width: 100%; padding-right: 80px; overflow: hidden; box-sizing: border-box; }
         .profile-pic-container { width: 50px; height: 50px; border-radius: 50%; border: 2px solid var(--biru); overflow: hidden; flex-shrink: 0; background: var(--hitam); position: relative; }
         .profile-pic { width: 100%; height: 100%; object-fit: cover; }
         .profile-title { font-size: 11px; color: var(--text-muted); text-transform: uppercase; font-weight: 800; letter-spacing: 1px; display: block;}
-        .profile-name { font-size: 18px; font-weight: 900; margin: 0; display: flex; align-items: center; gap: 8px;}
+        
+        /* Pertahanan Terakhir: Paksa potong menjadi "..." jika teks tetap melanggar batas */
+        .profile-name { font-size: clamp(15px, 5vw, 18px); font-weight: 900; margin: 0; display: block; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; width: 100%; }
 
         /* FINANCIAL HEALTH INDICATOR */
         .health-badge { position: absolute; right: 20px; top: 50%; transform: translateY(-50%); padding: 6px 10px; border-radius: 8px; font-size: 10px; font-weight: 900; text-transform: uppercase; letter-spacing: 0.5px; border: 1px solid; display: flex; flex-direction: column; align-items: center; background: var(--hitam-card); transition: all 0.3s;}
@@ -93,9 +99,9 @@
         .wallet-switcher[data-active="tabungan"] .wallet-slider { transform: translateX(100%); background: var(--kuning); }
         
         .btn-tab {
-            flex: 1; position: relative; z-index: 1; padding: 14px 0; background: transparent; border: none;
-            color: var(--text-muted); font-weight: 900; font-size: 14px; cursor: pointer; transition: all 0.3s;
-            text-transform: uppercase; letter-spacing: 0.5px;
+            flex: 1; position: relative; z-index: 1; padding: 14px 5px; background: transparent; border: none;
+            color: var(--text-muted); font-weight: 900; font-size: clamp(10px, 3.5vw, 14px); cursor: pointer; transition: all 0.3s;
+            text-transform: uppercase; letter-spacing: 0.5px; white-space: nowrap !important; overflow: hidden; text-overflow: ellipsis;
         }
         .btn-tab.active { color: var(--putih); font-size: 15px; }
         .wallet-switcher[data-active="harian"] .btn-tab#tab-harian { text-shadow: 0 0 12px rgba(59, 130, 246, 0.9); }
@@ -249,9 +255,9 @@
         .receipt-card::before { left: -12px; border-right: 2px dashed #334155; }
         .receipt-card::after { right: -12px; border-left: 2px dashed #334155; }
         .receipt-head { text-align: center; border-bottom: 2px dashed #334155; padding-bottom: 15px; margin-bottom: 20px; }
-        .receipt-row { display: flex; justify-content: space-between; margin-bottom: 12px; font-size: 13px; align-items: flex-start;}
-        .receipt-label { color: var(--text-muted); font-weight: 700; width: 40%; }
-        .receipt-val { font-weight: 900; text-align: right; width: 60%; word-break: break-word; }
+        .receipt-row { display: flex; justify-content: space-between; margin-bottom: 12px; font-size: 13px; align-items: flex-end; gap: 10px; flex-wrap: nowrap !important; }
+        .receipt-label { color: var(--text-muted); font-weight: 700; flex-shrink: 0; }
+        .receipt-val { font-weight: 900; text-align: right; flex-grow: 1; white-space: nowrap !important; word-break: keep-all !important; overflow: hidden; text-overflow: ellipsis; }
 
         .input-label { display: block; margin-bottom: 8px; font-size: 12px; font-weight: 800; color: var(--text-muted); text-transform: uppercase; }
         .input-field { width: 100%; padding: 16px; background: var(--hitam); border: 1px solid var(--border); border-radius: 10px; color: var(--putih); font-size: 15px; font-weight: 700; font-family: inherit; box-sizing: border-box; transition: border-color 0.3s; margin-bottom: 20px; outline: none; }
@@ -1027,7 +1033,7 @@
         // ==========================================
         // 1. SISTEM AUTO-UPDATE & SMART CACHE BUSTER
         // ==========================================
-        const APP_VERSION = '28.5'; // Selaraskan dengan CACHE_NAME di sw.js
+        const APP_VERSION = '28.6'; // Selaraskan dengan CACHE_NAME di sw.js
         
         function checkAppVersion() {
             const savedVersion = localStorage.getItem('finance_app_version');
@@ -1080,8 +1086,9 @@
         
         let profile = JSON.parse(localStorage.getItem('user_profile_secure_v2'));
         
-        // HUKUM MUTLAK: Jika status di app terdeteksi Guest, profil wajib direset bersih!
-        if (!profile || APP_MODE === 'GUEST') {
+        // LOGIKA BARU: Hanya reset profil jika data profil lokal benar-benar kosong/hilang.
+        // Hapus syarat "|| APP_MODE === 'GUEST'" agar nama kustom pengguna dipertahankan.
+        if (!profile) {
             profile = { ...defaultProfile }; 
             localStorage.setItem('user_profile_secure_v2', JSON.stringify(profile));
         }
@@ -1575,6 +1582,17 @@
         function formatRpPendek(num) { let str = new Intl.NumberFormat('id-ID', { style: 'currency', currency: 'IDR', minimumFractionDigits: 0 }).format(num); return str.replace(/\.000$/, '...'); }
         function formatDetailDate(iso) { if(!iso) return '-'; const d = new Date(iso); return `${String(d.getDate()).padStart(2,'0')}/${String(d.getMonth()+1).padStart(2,'0')}/${d.getFullYear()} - ${String(d.getHours()).padStart(2,'0')}:${String(d.getMinutes()).padStart(2,'0')}:${String(d.getSeconds()).padStart(2,'0')}`; }
         
+        // MESIN SMART INITIAL: Potong kata terakhir jadi inisial jika nama > 15 karakter
+        function formatSmartName(name) {
+            if (!name || name.length <= 15) return name; 
+            let words = name.trim().split(/\s+/);
+            if (words.length > 1) {
+                let lastWord = words.pop(); 
+                return words.join(' ') + ' ' + lastWord.charAt(0).toUpperCase() + '.';
+            }
+            return name; 
+        }
+        
         function showToast(msg, type = 'success') { 
             const box = document.getElementById('toastBox'); 
             if(!box) return; 
@@ -1597,7 +1615,8 @@
         // 8. PROFIL, KEAMANAN PIN & GOOGLE AUTH
         // ==========================================
         function initAppHeader() { 
-            document.getElementById('headName').innerText = profile.name; 
+            // Lewatkan nama melalui mesin pemotong inisial sebelum dicetak
+            document.getElementById('headName').innerText = formatSmartName(profile.name); 
             document.getElementById('headGender').innerText = profile.gender; 
             document.getElementById('headProfileImg').src = profile.photo; 
         }
@@ -2272,9 +2291,9 @@
                 <div class="receipt-row"><span class="receipt-label">Sifat</span><span class="receipt-val" style="color:${rColor};">${rType}</span></div> 
                 <div class="receipt-row"><span class="receipt-label">Keterangan</span><span class="receipt-val">${tx.desc}</span></div> 
                 ${tx.borrower ? `<div class="receipt-row"><span class="receipt-label" style="color:var(--kuning);">Peminjam</span><span class="receipt-val" style="color:var(--kuning);">${tx.borrower}</span></div>` : ''} 
-                <div class="receipt-row" style="margin-top:25px; border-top:2px dashed var(--border); padding-top:20px; align-items: flex-end;"> 
-                    <span class="receipt-label" style="font-size:14px; color:var(--putih);">TOTAL</span> 
-                    <span class="receipt-val" style="font-size:24px; color:${rColor}; letter-spacing:-1px;">${formatRp(tx.amount)}</span> 
+                <div class="receipt-row" style="margin-top:25px; border-top:2px dashed var(--border); padding-top:20px; align-items: flex-end; flex-wrap: nowrap !important;"> 
+                    <span class="receipt-label" style="font-size:14px; color:var(--putih); flex-shrink: 0;">TOTAL</span> 
+                    <span class="receipt-val" style="font-size: clamp(16px, 5.5vw, 22px); color:${rColor}; letter-spacing:-1px; white-space: nowrap !important; word-break: keep-all !important; flex-grow: 1; text-align: right;">${formatRp(tx.amount)}</span> 
                 </div> 
             `; 
             document.getElementById('receiptModal').classList.add('active'); 
