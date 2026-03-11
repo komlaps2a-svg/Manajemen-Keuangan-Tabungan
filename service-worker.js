@@ -1,4 +1,4 @@
-const CACHE_NAME = 'finance-Pay-v28.7';
+const CACHE_NAME = 'finance-Pay-v28.8';
 
 // 1A. FILE INTI (HARGA MATI): Jika 1 saja gagal, Service Worker Batal Instal!
 const coreUrls = [
